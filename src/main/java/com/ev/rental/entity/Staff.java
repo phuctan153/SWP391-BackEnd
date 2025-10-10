@@ -14,9 +14,9 @@ import java.time.LocalDateTime;
 @Data
 public class Staff {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "staff_id")
-    private Long staffId;
+    private String staffId;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

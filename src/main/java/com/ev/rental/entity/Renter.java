@@ -15,9 +15,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class Renter {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "renter_id")
-    private Long renterId;
+    private String renterId;
 
     @Column(nullable = false)
     private String username;

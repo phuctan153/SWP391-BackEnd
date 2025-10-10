@@ -14,9 +14,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class Contract {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "contract_id")
-    private Long contractId;
+    private String contractId;
 
     @OneToOne
     @JoinColumn(name = "booking_id", nullable = false, unique = true)

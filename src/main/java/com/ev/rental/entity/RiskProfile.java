@@ -14,9 +14,9 @@ import java.time.LocalDate;
 @NoArgsConstructor
 public class RiskProfile {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "risk_id")
-    private Long riskId;
+    private String riskId;
 
     @OneToOne
     @JoinColumn(name = "renter_id", nullable = false, unique = true)

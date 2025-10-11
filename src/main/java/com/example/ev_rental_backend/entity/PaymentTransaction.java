@@ -12,13 +12,14 @@ import java.time.LocalDateTime;
 @Table(name = "payment_transaction")
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class PaymentTransaction {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long transactionId;
 
-    @ManyToOne @JoinColumn(name = "payment_id")
-    private Payment payment;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invoice_id")
+    private Invoice invoice;
 
-    private String providerRef;
     private LocalDateTime transactionTime;
     private Double amount;
 

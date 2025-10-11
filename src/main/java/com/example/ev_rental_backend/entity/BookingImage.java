@@ -21,5 +21,11 @@ public class BookingImage {
     private String imageUrl;
     private LocalDateTime takenAt;
     private String description;
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 }
 

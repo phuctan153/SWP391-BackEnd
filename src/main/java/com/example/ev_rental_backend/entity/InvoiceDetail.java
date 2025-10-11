@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "invoice_line")
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
-public class InvoiceLine {
+public class InvoiceDetail {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long invoiceLineId;
 

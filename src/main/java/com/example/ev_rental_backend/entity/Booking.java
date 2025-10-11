@@ -30,7 +30,10 @@ public class Booking {
     @ManyToOne @JoinColumn(name = "vehicle_id")
     private Vehicle vehicle;
 
-    private LocalDate bookingDate;
+    private Double priceSnapshotPerHour;
+    private Double priceSnapshotPerDay;
+
+    private LocalDateTime actualReturnTime;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private LocalDateTime expiredAt;

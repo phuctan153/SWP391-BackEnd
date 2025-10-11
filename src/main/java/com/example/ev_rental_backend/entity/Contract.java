@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Table(name = "contract")
@@ -27,7 +28,9 @@ public class Contract {
     @Enumerated(EnumType.STRING)
     private ContractType contractType;
 
-    @Lob private String termsConditions;
+    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<TermCondition> termConditions;
+
     private String renterSignature;
     private String staffSignature;
 

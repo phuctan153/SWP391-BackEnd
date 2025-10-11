@@ -18,7 +18,6 @@ public class VehicleModel {
     private String modelName;
     private String manufacturer;
     private Double batteryCapacity;
-    private Double rangeKm;
     private int seatingCapacity;
 
     @OneToMany(mappedBy = "model")

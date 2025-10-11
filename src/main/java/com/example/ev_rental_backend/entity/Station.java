@@ -19,7 +19,7 @@ public class Station {
     private String location;
     private Double latitude;
     private Double longitude;
-    private int capacity;
+    private int car_number;
 
     @Enumerated(EnumType.STRING)
     private Status status;

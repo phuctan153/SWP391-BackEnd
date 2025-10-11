@@ -13,6 +13,7 @@ public class Admin {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long globalAdminId;
 
+    private String password;
     private String fullName;
     private String email;
     private String phoneNumber;

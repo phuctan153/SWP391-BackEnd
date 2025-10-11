@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -19,18 +19,30 @@ public class Invoice {
     @ManyToOne @JoinColumn(name = "booking_id")
     private Booking booking;
 
-    private LocalDate issueDate;
+    private Type type;
+    public enum Type { Deposit, Final }
+
+    private Double depositAmount;
+    private LocalDateTime createdAt;
+    private LocalDateTime completedAt;
     private Double totalAmount;
 
     @Enumerated(EnumType.STRING)
     private Status status;
-
     public enum Status { PENDING, COMPLETED, CANCELLED, FAILED }
 
-    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL)
-    private List<InvoiceLine> lines;
+    private String notes;
 
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL)
-    private List<Payment> payments;
+    private List<InvoiceDetail> lines;
+
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PaymentTransaction> transactions;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
+
 }
 

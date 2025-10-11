@@ -28,7 +28,6 @@ public class Renter {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    // Cho phép null nếu đăng nhập bằng Google
     @Column(length = 255, nullable = true)
     private String password;
 

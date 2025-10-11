@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "trip_rating")
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
-public class TripRating {
+public class BookingRating {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long ratingId;
 
@@ -22,4 +22,9 @@ public class TripRating {
     private int staffRating;
     private String comment;
     private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 }

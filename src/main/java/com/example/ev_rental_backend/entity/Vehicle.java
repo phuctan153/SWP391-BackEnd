@@ -22,6 +22,9 @@ public class Vehicle {
     @ManyToOne @JoinColumn(name = "model_id")
     private VehicleModel model;
 
+    private Double pricePerHour;
+    private Double pricePerDay;
+
     @Column(unique = true)
     private String plateNumber;
 

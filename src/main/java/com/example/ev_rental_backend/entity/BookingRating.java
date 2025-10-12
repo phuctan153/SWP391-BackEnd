@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "trip_rating")
+@Table(name = "booking_rating")
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class BookingRating {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -18,7 +18,7 @@ public class BookingRating {
     @OneToOne @JoinColumn(name = "booking_id")
     private Booking booking;
 
-    private int renterRating;
+    private int vehicleRating;
     private int staffRating;
     private String comment;
     private LocalDateTime createdAt;

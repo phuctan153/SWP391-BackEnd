@@ -6,8 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-import java.util.List;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "contract")
@@ -16,26 +15,62 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class Contract {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long contractId;
 
-    @OneToOne @JoinColumn(name = "booking_id")
+    // 🔗 FK → Booking
+    @OneToOne
+    @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
-    private LocalDate contractDate;
+    // 🗓️ Ngày tạo/ký hợp đồng
+    private LocalDateTime contractDate;
 
+    // 📄 Loại hợp đồng (ELECTRONIC / PAPER)
     @Enumerated(EnumType.STRING)
+    @Column(length = 20, nullable = false)
     private ContractType contractType;
 
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<TermCondition> termConditions;
+    // 📎 File hợp đồng PDF hoặc URL cloud
+    @Column(length = 255)
+    private String contractFileUrl;
 
+    // ✍️ Chữ ký điện tử của người thuê
+    @Column(length = 256)
     private String renterSignature;
-    private String staffSignature;
 
-    public enum ContractType { ELECTRONIC, PAPER }
+    // ⚙️ Trạng thái hợp đồng
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30, nullable = false)
+    private Status status;
 
-    @OneToOne(mappedBy = "contract", cascade = CascadeType.ALL)
-    private OtpVerification otpVerification;
+    // 🕒 Thời gian tạo và cập nhật
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    // ⏰ Tự động cập nhật thời gian
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+        if (this.status == null) {
+            this.status = Status.PENDING_SIGNATURE;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // 🧩 ENUMS
+    public enum ContractType {
+        ELECTRONIC, PAPER
+    }
+
+    public enum Status {
+        PENDING_SIGNATURE, SIGNED, CANCELLED
+    }
 }

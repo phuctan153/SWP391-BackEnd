@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -18,8 +19,16 @@ public class RenterResponseDTO {
     private String phoneNumber;
     private String nationalId;
     private String driverLicense;
+    private LocalDate driverLicenseExpiry;
     private LocalDate dateOfBirth;
     private String address;
-    private String status;
+
+    private String status;          // VERIFIED / PENDING_VERIFICATION / DELETED
     private boolean isBlacklisted;
+
+    private String googleId;        // ID Google (nếu đăng nhập bằng Google)
+    private String authProvider;    // LOCAL / GOOGLE
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

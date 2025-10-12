@@ -51,7 +51,6 @@ public class StationServiceImpl implements StationService {
                                     .batteryLevel(v.getBatteryLevel())
                                     .status(v.getStatus().toString())
                                     .mileage(v.getMileage())
-                                    .lastServiceDate(v.getLastServiceDate())
                                     .build())
                             .collect(Collectors.toList()));
 
@@ -93,7 +92,6 @@ public class StationServiceImpl implements StationService {
                                     .batteryLevel(v.getBatteryLevel())
                                     .status(v.getStatus().toString())
                                     .mileage(v.getMileage())
-                                    .lastServiceDate(v.getLastServiceDate())
                                     .build())
                             .collect(Collectors.toList()));
 

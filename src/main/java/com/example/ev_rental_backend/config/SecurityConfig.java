@@ -45,6 +45,9 @@ public class SecurityConfig {
                                 "/v3/api-docs/swagger-config",
                                 "/error"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/staff/**").hasAnyAuthority("STAFF", "ADMIN")
+                        .requestMatchers("/api/renter/**").hasAuthority("RENTER")
                         .anyRequest().authenticated()
                 )
 

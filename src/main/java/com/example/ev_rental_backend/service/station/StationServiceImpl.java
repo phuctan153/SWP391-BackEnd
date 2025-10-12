@@ -1,13 +1,17 @@
 package com.example.ev_rental_backend.service.station;
 
+import com.example.ev_rental_backend.dto.station_vehicle.CreateStationResponseDTO;
+import com.example.ev_rental_backend.dto.station_vehicle.StationRequestDTO;
 import com.example.ev_rental_backend.dto.station_vehicle.StationResponseDTO;
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.entity.Vehicle;
+import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.mapper.StationMapper;
 import com.example.ev_rental_backend.repository.StationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
@@ -109,5 +113,75 @@ public class StationServiceImpl implements StationService {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Tạo mới trạm
+    @Override
+    @Transactional
+    public CreateStationResponseDTO createStation(StationRequestDTO requestDTO) {
+        // 1. Kiểm tra tên trạm đã tồn tại chưa
+        if (stationRepository.existsByNameIgnoreCase(requestDTO.getName())) {
+            throw new CustomException(
+                    "Tên trạm '" + requestDTO.getName() + "' đã tồn tại trong hệ thống"
+            );
+        }
+
+        // 2. Kiểm tra tọa độ có trùng với trạm khác không (trong bán kính ~100m)
+        List<Station> nearbyStations = stationRepository.findByNearbyCoordinates(
+                requestDTO.getLatitude(),
+                requestDTO.getLongitude()
+        );
+
+        if (!nearbyStations.isEmpty()) {
+            Station existingStation = nearbyStations.get(0);
+            throw new CustomException(
+                    "Tọa độ này quá gần với trạm '" + existingStation.getName() +
+                            "' (khoảng cách < 100m). Vui lòng chọn vị trí khác."
+            );
+        }
+
+        // 3. Validate dữ liệu đầu vào
+        validateStationData(requestDTO);
+
+        // 4. Map DTO -> Entity
+        Station station = stationMapper.toEntity(requestDTO);
+
+        // 5. Lưu station vào database
+        Station savedStation = stationRepository.save(station);
+
+        // 6. Map Entity -> Response DTO và trả về
+        return stationMapper.toResDto(savedStation);
+    }
+
+    /**
+     * Validate dữ liệu đầu vào
+     */
+    private void validateStationData(StationRequestDTO requestDTO) {
+        // Kiểm tra tọa độ hợp lý cho Việt Nam
+        // Việt Nam: Latitude: 8.5 - 23.4, Longitude: 102.1 - 109.5
+        if (requestDTO.getLatitude() < 8.0 || requestDTO.getLatitude() > 24.0) {
+            throw new CustomException(
+                    "Vĩ độ không hợp lệ cho Việt Nam. Vĩ độ phải trong khoảng 8.0 - 24.0"
+            );
+        }
+
+        if (requestDTO.getLongitude() < 102.0 || requestDTO.getLongitude() > 110.0) {
+            throw new CustomException(
+                    "Kinh độ không hợp lệ cho Việt Nam. Kinh độ phải trong khoảng 102.0 - 110.0"
+            );
+        }
+
+        // Kiểm tra số lượng xe hợp lý
+        if (requestDTO.getCarNumber() < 5) {
+            throw new CustomException(
+                    "Trạm phải có ít nhất 5 vị trí để đảm bảo hiệu quả vận hành"
+            );
+        }
+
+        if (requestDTO.getCarNumber() > 200) {
+            throw new CustomException(
+                    "Số lượng xe tối đa không nên vượt quá 200 để đảm bảo quản lý hiệu quả"
+            );
+        }
     }
 }

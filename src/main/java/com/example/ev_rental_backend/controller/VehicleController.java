@@ -2,7 +2,10 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
 import com.example.ev_rental_backend.service.vehicle.VehicleService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/stations")
+@RequestMapping("/api/vehicles")
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RequiredArgsConstructor
 public class VehicleController {
@@ -35,5 +38,20 @@ public class VehicleController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/create")
+    public ResponseEntity<ApiResponse<VehicleResDTO>> createVehicle(
+            @Valid @RequestBody VehicleRequestDTO requestDTO) {
+
+        VehicleResDTO vehicleData = vehicleService.createVehicle(requestDTO);
+
+        ApiResponse<VehicleResDTO> response = ApiResponse.<VehicleResDTO>builder()
+                .status("success")
+                .code(HttpStatus.CREATED.value())
+                .data(vehicleData)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

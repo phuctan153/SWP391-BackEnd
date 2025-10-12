@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",      // đăng ký / login
                                 "/api/stations/**",  // public cho bản đồ
+                                "/api/momo/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

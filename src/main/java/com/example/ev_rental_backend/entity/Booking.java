@@ -104,7 +104,7 @@ public class Booking {
 
     // 🧩 ENUMS
     public enum Status {
-        RESERVED, IN_USE, COMPLETED, CANCELLED, EXPIRED
+        PENDING, RESERVED, IN_USE, COMPLETED, CANCELLED, EXPIRED
     }
 
     public enum DepositStatus {

@@ -44,7 +44,9 @@ public class SecurityConfig {
                                 "/v3/api-docs.yaml",
                                 "/v3/api-docs/swagger-config",
                                 "/error",
-                                "/api/vehicles/**" // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/vehicles/**",// tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/bookings/**", // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/vehicle-models/**" // tạm thời public để test xe (sẽ đổi lại sau)
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/staff/**").hasAnyAuthority("STAFF", "ADMIN")

@@ -6,14 +6,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
-public class VehicleModelResponseDTO {
-    private Long modelId;
+public class VehicleModelRequestDTO {
     private String modelName;
     private String manufacturer;
     private Double batteryCapacity;
     private int seatingCapacity;
 }
-

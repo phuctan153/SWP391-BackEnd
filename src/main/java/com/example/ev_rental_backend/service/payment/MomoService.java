@@ -3,6 +3,7 @@ package com.example.ev_rental_backend.service.payment;
 import com.example.ev_rental_backend.client.MomoApi;
 import com.example.ev_rental_backend.dto.payment.CreateMomoRequest;
 import com.example.ev_rental_backend.dto.payment.CreateMomoResponse;
+import com.example.ev_rental_backend.dto.payment.MomoIPNRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -94,6 +95,39 @@ public class MomoService {
             hexString.append(hex);
         }
         return hexString.toString();
+    }
+
+    public void handleMomoIPN(MomoIPNRequest request) throws Exception {
+        String rawSignature = String.format(
+                "accessKey=%s&amount=%d&extraData=%s&message=%s&orderId=%s&orderInfo=%s&orderType=%s&partnerCode=%s&payType=%s&requestId=%s&responseTime=%d&resultCode=%d&transId=%s",
+                ACCESS_KEY,
+                request.getAmount(),
+                request.getExtraData(),
+                request.getMessage(),
+                request.getOrderId(),
+                request.getOrderInfo(),
+                request.getOrderType(),
+                PARTNER_CODE,
+                request.getPayType(),
+                request.getRequestId(),
+                request.getResponseTime(),
+                request.getResultCode(),
+                request.getTransId()
+        );
+
+        String computedSignature = signHmacSHA256(rawSignature, SECRET_KEY);
+
+        if (!computedSignature.equals(request.getSignature())) {
+            log.error("❌ Invalid Momo signature!\nExpected: {}\nReceived: {}", computedSignature, request.getSignature());
+            throw new RuntimeException("Invalid Momo signature!");
+        }
+
+        if (request.getResultCode() == 0) {
+            log.info("✅ Thanh toán thành công cho orderId: {}", request.getOrderId());
+            // TODO: cập nhật trạng thái booking
+        } else {
+            log.warn("❌ Thanh toán thất bại cho orderId: {} - message: {}", request.getOrderId(), request.getMessage());
+        }
     }
 
 }

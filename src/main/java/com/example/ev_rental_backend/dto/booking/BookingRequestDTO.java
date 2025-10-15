@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 public class BookingRequestDTO {
     private Long renterId;
     private Long vehicleId;
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    private Long stationId;
+    private LocalDateTime startDateTime;
+    private LocalDateTime endDateTime;
+    private String note;
 }

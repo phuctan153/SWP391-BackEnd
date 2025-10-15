@@ -6,17 +6,47 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class BookingResponseDTO {
     private Long bookingId;
-    private Long renterId;
-    private Long staffId;
-    private Long vehicleId;
-    private LocalDate bookingDate;
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
     private String status;
-    private LocalDateTime expiredAt;
-    private Double depositAmount;
-    private Double totalAmount;
+    private LocalDateTime startDateTime;
+    private LocalDateTime endDateTime;
+    private String note;
+    private RenterBasicDTO renter;
+    private VehicleBasicDTO vehicle;
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RenterBasicDTO {
+        private Long renterId;
+        private String fullName;
+        private String email;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class VehicleBasicDTO {
+        private Long vehicleId;
+        private String plateNumber;
+        private String modelName;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class StationBasicDTO {
+        private Long stationId;
+        private String name;
+        private String location;
+    }
 }

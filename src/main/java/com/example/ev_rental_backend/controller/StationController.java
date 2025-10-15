@@ -1,8 +1,11 @@
 package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
+import com.example.ev_rental_backend.dto.station_vehicle.CreateStationResponseDTO;
+import com.example.ev_rental_backend.dto.station_vehicle.StationRequestDTO;
 import com.example.ev_rental_backend.dto.station_vehicle.StationResponseDTO;
 import com.example.ev_rental_backend.service.station.StationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +56,22 @@ public class StationController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    //API tạo mới trạm
+    @PostMapping("/create")
+    public ResponseEntity<ApiResponse<CreateStationResponseDTO>> createStation(
+            @Valid @RequestBody StationRequestDTO requestDTO) {
+
+        CreateStationResponseDTO stationData = stationService.createStation(requestDTO);
+
+        ApiResponse<CreateStationResponseDTO> response = ApiResponse.<CreateStationResponseDTO>builder()
+                .status("success")
+                .code(HttpStatus.CREATED.value())
+                .data(stationData)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
 }

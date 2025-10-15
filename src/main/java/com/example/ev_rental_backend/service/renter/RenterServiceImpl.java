@@ -13,9 +13,8 @@ import org.springframework.stereotype.Service;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.Period;
-import java.util.Locale;
-import java.util.NoSuchElementException;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class RenterServiceImpl implements RenterService{
@@ -57,17 +56,12 @@ public class RenterServiceImpl implements RenterService{
     @Override
     public RenterResponseDTO loginRenter(String email, String password) {
         Optional<Renter> renterOpt = renterRepository.findByEmail(email);
-        if (renterOpt.isEmpty())
-            throw new RuntimeException("Email không tồn tại");
-
-        Renter renter = renterOpt.get();
-
-        // ⚠️ Tạm thời so sánh trực tiếp (chưa mã hoá)
-        if (!renter.getPassword().equals(password))
-            throw new RuntimeException("Mật khẩu không chính xác");
-
+        if (renterOpt.isEmpty()) throw new RuntimeException("Email không tồn tại");
+        Renter renter = renterOpt.get(); // ⚠️ Tạm thời so sánh trực tiếp (chưa mã hoá)
+        if (!renter.getPassword().equals(password)) throw new RuntimeException("Mật khẩu không chính xác");
         return renterMapper.toResponseDto(renter);
     }
+
 
     @Override
     public Renter verifyKyc(KycVerificationDTO dto) {
@@ -136,6 +130,45 @@ public class RenterServiceImpl implements RenterService{
         }
 
         return "UNKNOWN";
+    }
+
+    @Override
+    public List<RenterResponseDTO> getPendingVerificationRenters() {
+        return renterRepository.findByStatus(Renter.Status.PENDING_VERIFICATION)
+                .stream()
+                .map(renterMapper::toResponseDto)
+                .toList();
+    }
+
+    @Override
+    public RenterResponseDTO verifyRenterById(Long renterId) {
+        Renter renter = renterRepository.findById(renterId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người thuê có ID: " + renterId));
+
+        if (renter.getStatus() == Renter.Status.VERIFIED) {
+            throw new RuntimeException("Người thuê này đã được xác thực trước đó.");
+        }
+
+        if (renter.getStatus() == Renter.Status.DELETED) {
+            throw new RuntimeException("Không thể xác thực người thuê đã bị xóa.");
+        }
+
+        renter.setStatus(Renter.Status.VERIFIED);
+        renterRepository.save(renter);
+        return renterMapper.toResponseDto(renter);
+    }
+
+    @Override
+    public void deleteRenterById(Long renterId) {
+        Renter renter = renterRepository.findById(renterId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người thuê có ID: " + renterId));
+
+        if (renter.getStatus() == Renter.Status.DELETED) {
+            throw new RuntimeException("Người thuê này đã bị xóa trước đó.");
+        }
+
+        renter.setStatus(Renter.Status.DELETED);
+        renterRepository.save(renter);
     }
 
     private String normalize(String input) {

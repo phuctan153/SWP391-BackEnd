@@ -34,8 +34,9 @@ public class GoogleAuthServiceImpl implements GoogleAuthService{
                     return renterRepository.save(newRenter);
                 });
 
-        // 🔹 3. Sinh JWT token
-        String token = jwtTokenUtil.generateToken(email);
+        // 🔹 3. Sinh JWT token (có role)
+        String token = jwtTokenUtil.generateTokenWithRole(email, "RENTER");
+
 
         // 🔹 4. Xác định trạng thái KYC
         String kycStatus;

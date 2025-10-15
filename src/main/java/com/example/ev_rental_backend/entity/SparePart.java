@@ -17,5 +17,8 @@ public class SparePart {
     private String description;
     private Double unitPrice;
     private int stockQuantity;
+
+    @OneToOne(mappedBy = "sparePart", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private InvoiceDetail invoiceDetail;
 }
 

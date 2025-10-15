@@ -14,7 +14,6 @@ public class VehicleModelResponseDTO {
     private String modelName;
     private String manufacturer;
     private Double batteryCapacity;
-    private Double rangeKm;
     private int seatingCapacity;
 }
 

@@ -19,27 +19,27 @@ public class MomoController {
 
     private final MomoService momoService;
 
-    @PostMapping("/create")
-    public CreateMomoResponse createMomo() {
-        return momoService.createMomo();
-    }
+//    @PostMapping("/create")
+//    public CreateMomoResponse createMomo() {
+//        return momoService.createMomo();
+//    }
 
-    @PostMapping("/ipn")
-    public MomoIPNResponse handleMomoIPN(@RequestBody MomoIPNRequest request) {
-        log.info("🔔 Received Momo IPN: {}", request);
-
-        try {
-            momoService.handleMomoIPN(request);
-            return MomoIPNResponse.builder()
-                    .resultCode(0)
-                    .message("Confirm Success")
-                    .build();
-        } catch (Exception e) {
-            log.error("❌ Error processing Momo IPN: {}", e.getMessage());
-            return MomoIPNResponse.builder()
-                    .resultCode(1)
-                    .message("Confirm Failed: " + e.getMessage())
-                    .build();
-        }
-    }
+//    @PostMapping("/ipn")
+//    public MomoIPNResponse handleMomoIPN(@RequestBody MomoIPNRequest request) {
+//        log.info("🔔 Received Momo IPN: {}", request);
+//
+//        try {
+//            momoService.handleMomoIPN(request);
+//            return MomoIPNResponse.builder()
+//                    .resultCode(0)
+//                    .message("Confirm Success")
+//                    .build();
+//        } catch (Exception e) {
+//            log.error("❌ Error processing Momo IPN: {}", e.getMessage());
+//            return MomoIPNResponse.builder()
+//                    .resultCode(1)
+//                    .message("Confirm Failed: " + e.getMessage())
+//                    .build();
+//        }
+//    }
 }

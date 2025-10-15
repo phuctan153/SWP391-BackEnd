@@ -12,11 +12,20 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class PaymentResponseDTO {
-    private Long paymentId;
+    private Long transactionId;
     private Long invoiceId;
-    private String method;
-    private String status;
+    private Long bookingId;
+    private String invoiceType; // DEPOSIT, FINAL
+
     private Double amount;
+    private String paymentMethod;
+    private String status;
+
+    // Momo payment info
+    private String payUrl;
+    private String qrCodeUrl;
+    private String deeplink;
+
     private LocalDateTime createdAt;
-    private LocalDateTime completedAt;
+    private LocalDateTime expiresAt;
 }

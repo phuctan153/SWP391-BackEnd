@@ -4,6 +4,9 @@ import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleStatusResponse;
+import com.example.ev_rental_backend.dto.vehicle.VehicleStatusUpdate;
+import com.example.ev_rental_backend.entity.Vehicle;
 import com.example.ev_rental_backend.service.vehicle.VehicleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -53,5 +56,21 @@ public class VehicleController {
                 .build();
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<VehicleStatusResponse>> updateVehicleStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody VehicleStatusUpdate requestDTO) {
+
+        VehicleStatusResponse statusData = vehicleService.updateVehicleStatus(id, requestDTO);
+
+        ApiResponse<VehicleStatusResponse> response = ApiResponse.<VehicleStatusResponse>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(statusData)
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 }

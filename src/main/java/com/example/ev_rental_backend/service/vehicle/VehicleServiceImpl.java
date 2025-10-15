@@ -3,6 +3,8 @@ package com.example.ev_rental_backend.service.vehicle;
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleStatusResponse;
+import com.example.ev_rental_backend.dto.vehicle.VehicleStatusUpdate;
 import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.entity.Vehicle;
 import com.example.ev_rental_backend.entity.VehicleModel;
@@ -16,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -146,5 +149,49 @@ public class VehicleServiceImpl implements VehicleService {
                     "Giá thuê theo ngày phải >= 50,000 VNĐ"
             );
         }
+    }
+
+    @Override
+    @Transactional
+    public VehicleStatusResponse updateVehicleStatus(Long vehicleId, VehicleStatusUpdate requestDTO) {
+        // 1. Lấy thông tin xe
+        Vehicle vehicle = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy xe với ID: " + vehicleId
+                ));
+
+        // 2. Parse trạng thái mới
+        Vehicle.Status newStatus;
+        try {
+            newStatus = Vehicle.Status.valueOf(requestDTO.getStatus().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(
+                    "Trạng thái không hợp lệ: " + requestDTO.getStatus()
+            );
+        }
+
+        // 3. Kiểm tra trạng thái hiện tại
+        Vehicle.Status previousStatus = vehicle.getStatus();
+
+        if (previousStatus == newStatus) {
+            throw new CustomException(
+                    "Xe đang ở trạng thái " + newStatus + ". Không cần cập nhật."
+            );
+        }
+
+        // 5. Cập nhật trạng thái
+        vehicle.setStatus(newStatus);
+        Vehicle updatedVehicle = vehicleRepository.save(vehicle);
+
+        // 6. Tạo response
+        return VehicleStatusResponse.builder()
+                .vehicleId(updatedVehicle.getVehicleId())
+                .vehicleName(updatedVehicle.getVehicleName())
+                .plateNumber(updatedVehicle.getPlateNumber())
+                .previousStatus(previousStatus.toString())
+                .currentStatus(newStatus.toString())
+                .updatedAt(LocalDateTime.now())
+                .updatedBy("SYSTEM") // TODO: Lấy từ JWT token
+                .build();
     }
 }

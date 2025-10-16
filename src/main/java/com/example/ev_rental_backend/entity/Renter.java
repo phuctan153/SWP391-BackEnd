@@ -84,4 +84,7 @@ public class Renter {
 
     @OneToOne(mappedBy = "renter", cascade = CascadeType.ALL, orphanRemoval = true)
     private RiskProfile riskProfile;
+
+    @OneToMany(mappedBy = "renter", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OtpVerificationEmail> otps;
 }

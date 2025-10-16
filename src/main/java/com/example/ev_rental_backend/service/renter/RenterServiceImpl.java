@@ -3,10 +3,12 @@ package com.example.ev_rental_backend.service.renter;
 import com.example.ev_rental_backend.dto.renter.KycVerificationDTO;
 import com.example.ev_rental_backend.dto.renter.RenterRequestDTO;
 import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
+import com.example.ev_rental_backend.entity.OtpVerificationEmail;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.mapper.KycMapper;
 import com.example.ev_rental_backend.mapper.RenterMapper;
 import com.example.ev_rental_backend.repository.RenterRepository;
+import com.example.ev_rental_backend.service.otp.OtpEmailServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -28,11 +30,14 @@ public class RenterServiceImpl implements RenterService{
     @Autowired
     RenterMapper renterMapper;
 
+    @Autowired
+    OtpEmailServiceImpl otpEmailServiceImpl;
+
     public RenterResponseDTO registerRenter(RenterRequestDTO dto) {
 
         // 🔹 Kiểm tra email và số điện thoại trùng
         if (renterRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Email đã được sử dụng!");
+            throw new RuntimeException("Email đã tồn tại!! Vui lòng đăng nhập");
         }
         if (renterRepository.existsByPhoneNumber(dto.getPhoneNumber())) {
             throw new RuntimeException("Số điện thoại đã được sử dụng!");
@@ -42,7 +47,7 @@ public class RenterServiceImpl implements RenterService{
         Renter renter = renterMapper.toEntity(dto);
 
         // 🔹 Thiết lập các giá trị mặc định
-        renter.setStatus(Renter.Status.PENDING_VERIFICATION);
+//        renter.setStatus(Renter.Status.PENDING_VERIFICATION);
         renter.setAuthProvider(Renter.AuthProvider.LOCAL);
         renter.setBlacklisted(false);
 
@@ -55,10 +60,21 @@ public class RenterServiceImpl implements RenterService{
 
     @Override
     public RenterResponseDTO loginRenter(String email, String password) {
-        Optional<Renter> renterOpt = renterRepository.findByEmail(email);
-        if (renterOpt.isEmpty()) throw new RuntimeException("Email không tồn tại");
-        Renter renter = renterOpt.get(); // ⚠️ Tạm thời so sánh trực tiếp (chưa mã hoá)
-        if (!renter.getPassword().equals(password)) throw new RuntimeException("Mật khẩu không chính xác");
+        Renter renter = renterRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
+
+        if (!renter.getPassword().equals(password)) {
+            throw new RuntimeException("Mật khẩu không chính xác");
+        }
+
+        if (!otpEmailServiceImpl.isRenterVerified(renter.getRenterId())) {
+            throw new RuntimeException("Tài khoản chưa được xác thực qua email!");
+        }
+
+        if (renter.getStatus() == null || !renter.getStatus().equals(Renter.Status.PENDING_VERIFICATION)) {
+            throw new RuntimeException("Tài khoản chưa được xác thực CCCD và GPLX");
+        }
+
         return renterMapper.toResponseDto(renter);
     }
 
@@ -94,19 +110,37 @@ public class RenterServiceImpl implements RenterService{
         LocalDate today = LocalDate.now();
         if (dto.getNationalExpireDate().isBefore(today))
             throw new RuntimeException("CCCD đã hết hạn.");
+
+        if (dto.getDriverExpireDate() == null || !isValidCarLicense(dto.getDriverClass())) {
+            throw new RuntimeException("Loại GPLX không hợp lệ để thuê ô tô. Cần có bằng B1 trở lên.");
+        }
+
         if (dto.getDriverExpireDate().isBefore(today))
-            throw new RuntimeException("GPLX đã hết hạn.");
+            throw new RuntimeException("GPLX đã hết hạn");
 
         // 🔹 5. Kiểm tra tuổi
         int age = Period.between(dto.getNationalDob(), today).getYears();
         if (age < 21)
             throw new RuntimeException("Người dùng chưa đủ 21 tuổi.");
 
+        // 🔹 6. Kiểm tra loại bằng lái xe
+
+
         // 🔹 6. Cập nhật thông tin vào DB
         kycMapper.updateRenterFromKyc(dto, renter);
 
+        renter.setStatus(Renter.Status.PENDING_VERIFICATION); // thêm dòng này
         // 🔹 7. Lưu vào DB
         return renterRepository.save(renter);
+    }
+
+    private boolean isValidCarLicense(String driverClass) {
+        if (driverClass == null || driverClass.isBlank()) return false;
+
+        String type = driverClass.trim().toUpperCase();
+        List<String> validCarLicenses = List.of("B1", "B2", "C", "D", "E", "F");
+
+        return validCarLicenses.contains(type);
     }
 
     @Override

@@ -41,37 +41,40 @@ public class RegisterController {
     JwtTokenUtil jwtTokenUtil;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<RenterResponseDTO>> registerUser(@Valid @RequestBody RenterRequestDTO renterRequestDTO) {
-//        try {
-//            RenterResponseDTO renter = renterServiceImpl.registerRenter(renterRequestDTO);
-//
-//            ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
-//                    .status("success")
-//                    .code(200)
-//                    .data(renter)
-//                    .build();
-//
-//            return ResponseEntity.ok(response);
-//
-//        } catch (Exception e) {
-//            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
-//                    .status("error")
-//                    .code(400)
-//                    .data(e.getMessage())
-//                    .build();
-//
-//            return ResponseEntity.badRequest().body((ApiResponse) errorResponse);
-//        }
-        RenterResponseDTO renter = renterServiceImpl.registerRenter(renterRequestDTO);
+    public ResponseEntity<ApiResponse<?>> registerUser(@Valid @RequestBody RenterRequestDTO renterRequestDTO) {
+        try {
+            RenterResponseDTO renter = renterServiceImpl.registerRenter(renterRequestDTO);
 
-        ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
-                .status("success")
-                .code(HttpStatus.CREATED.value())
-                .data(renter)
-                .build();
+            ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
+                    .status("success")
+                    .code(HttpStatus.CREATED.value())
+                    .data(renter)
+                    .build();
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (RuntimeException ex) {
+            // ❗ Bắt các lỗi do logic (email, phone trùng)
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.BAD_REQUEST.value())
+                    .data(ex.getMessage())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception ex) {
+            // ❗ Bắt các lỗi bất ngờ khác (DB, server, mapping,...)
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .data("Đã xảy ra lỗi máy chủ: " + ex.getMessage())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
+
 
     @PostMapping("/verify")
     public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody KycVerificationDTO dto) {
@@ -102,6 +105,8 @@ public class RegisterController {
             );
         }
     }
+
+
 
 
 

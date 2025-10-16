@@ -55,7 +55,7 @@ public interface PaymentMapper {
     /**
      * Map InvoiceDetail sang LineItemDTO
      */
-    @Mapping(target = "lineId", source = "invoiceLineId")
+    @Mapping(target = "lineId", source = "invoiceDetailId")
     @Mapping(target = "type", expression = "java(detail.getType().name())")
     @Mapping(target = "sparePart", source = "sparePart")
     InvoiceSummaryDTO.LineItemDTO toLineItemDTO(InvoiceDetail detail);

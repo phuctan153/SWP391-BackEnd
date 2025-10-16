@@ -34,7 +34,7 @@ public class DataUtil implements CommandLineRunner {
         if (renterRepository.count() == 0) {
             Renter renter = Renter.builder()
                     .fullName("Nguyen Van A")
-                    .email("nguyenvana@example.com")
+                    .email("nguyenva@example.com")
                     .password("123456")
                     .phoneNumber("0987654321")
                     .nationalId("123456789")

@@ -7,8 +7,10 @@ import com.example.ev_rental_backend.dto.payment.MomoIPNResponse;
 import com.example.ev_rental_backend.service.payment.MomoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -19,27 +21,30 @@ public class MomoController {
 
     private final MomoService momoService;
 
-//    @PostMapping("/create")
-//    public CreateMomoResponse createMomo() {
-//        return momoService.createMomo();
-//    }
+    @PostMapping("/ipn")
+    public ResponseEntity<Map<String, Object>> handleMomoIPN(
+            @RequestBody MomoIPNRequest request) {
 
-//    @PostMapping("/ipn")
-//    public MomoIPNResponse handleMomoIPN(@RequestBody MomoIPNRequest request) {
-//        log.info("🔔 Received Momo IPN: {}", request);
-//
-//        try {
-//            momoService.handleMomoIPN(request);
-//            return MomoIPNResponse.builder()
-//                    .resultCode(0)
-//                    .message("Confirm Success")
-//                    .build();
-//        } catch (Exception e) {
-//            log.error("❌ Error processing Momo IPN: {}", e.getMessage());
-//            return MomoIPNResponse.builder()
-//                    .resultCode(1)
-//                    .message("Confirm Failed: " + e.getMessage())
-//                    .build();
-//        }
-//    }
+        log.info("📨 Received Momo IPN callback: orderId={}", request.getOrderId());
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            momoService.handleMomoIPN(request);
+
+            // Momo yêu cầu response 204 No Content
+            response.put("status", 0);
+            response.put("message", "Success");
+
+            return ResponseEntity.noContent().build();
+
+        } catch (Exception e) {
+            log.error("❌ Error processing Momo IPN: {}", e.getMessage(), e);
+
+            response.put("status", -1);
+            response.put("message", "Failed: " + e.getMessage());
+
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
 }

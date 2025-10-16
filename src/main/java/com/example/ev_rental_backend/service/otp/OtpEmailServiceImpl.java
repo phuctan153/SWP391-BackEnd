@@ -23,13 +23,12 @@ public class OtpEmailServiceImpl implements OtpEmailService{
     private final OtpVerificationEmailRepository otpRepository;
 
     @Override
-    public void sendOtp(Long renterId) throws MessagingException {
-        Renter renter = renterRepository.findById(renterId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy renter "));
+    public void sendOtpByEmail(String email) throws MessagingException {
+        Renter renter = renterRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy renter với email: " + email));
 
         String otp = String.format("%06d", new Random().nextInt(999999));
 
-        // Lưu vào database
         OtpVerificationEmail otpRecord = OtpVerificationEmail.builder()
                 .renter(renter)
                 .otpCode(otp)
@@ -41,12 +40,12 @@ public class OtpEmailServiceImpl implements OtpEmailService{
     }
 
     @Override
-    public boolean verifyOtp(Long renterId, String otpCode) {
-        OtpVerificationEmail otp = otpRepository.findLatestOtpByRenterId(renterId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy OTP cho renter này"));
+    public boolean verifyOtpByEmail(String email, String otpCode) {
+        Renter renter = renterRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy renter với email: " + email));
 
-        Renter renter = renterRepository.findById(renterId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy renter với ID: " + renterId));
+        OtpVerificationEmail otp = otpRepository.findLatestOtpByRenterId(renter.getRenterId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy OTP cho renter này"));
 
         if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
             otp.setStatus(OtpVerificationEmail.Status.EXPIRED);
@@ -64,6 +63,7 @@ public class OtpEmailServiceImpl implements OtpEmailService{
         otpRepository.save(otp);
         return true;
     }
+
 
 
     @Override

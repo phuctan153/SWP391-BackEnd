@@ -82,7 +82,7 @@ public class RenterServiceImpl implements RenterService{
 
         // 🔹 3. Kiểm tra tài khoản bị khoá
         if (renter.isBlacklisted()) {
-            throw new RuntimeException("Tài khoản của bạn hiện bị tạm khoá. Vui lòng liên hệ hỗ trợ.");
+            throw new RuntimeException("Tài khoản của bạn hiện bị tạm khoá vì nghi ngờ hoạt động vi phạm. Vui lòng kiểm tra email để biết hướng kháng nghị.");
         }
 
         // 🔹 4. Kiểm tra OTP email đã xác thực chưa

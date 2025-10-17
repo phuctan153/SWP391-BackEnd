@@ -279,6 +279,22 @@ public class RenterServiceImpl implements RenterService{
         return "UNKNOWN";
     }
 
+    @Override
+    public RenterResponseDTO toResponseDto(Renter renter) {
+        RenterResponseDTO dto = renterMapper.toResponseDto(renter);
+
+        dto.setKycStatus(getKycStatusForRenter(renter));
+        dto.setOtpStatus(
+                otpEmailServiceImpl.isRenterVerified(renter.getRenterId()) ? "VERIFIED" : "PENDING"
+        );
+        dto.setNextStep(
+                !otpEmailServiceImpl.isRenterVerified(renter.getRenterId()) ? "EMAIL_OTP" :
+                        (!"VERIFIED".equals(getKycStatusForRenter(renter)) ? "KYC" : "DASHBOARD")
+        );
+
+        return dto;
+    }
+
 
     @Override
     public List<RenterResponseDTO> getPendingVerificationRenters() {

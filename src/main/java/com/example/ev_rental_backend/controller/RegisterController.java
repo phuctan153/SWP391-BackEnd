@@ -21,6 +21,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
@@ -77,16 +80,27 @@ public class RegisterController {
 
 
     @PostMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody KycVerificationDTO dto) {
+    public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody @Valid KycVerificationDTO dto) {
         try {
+            // 🔹 1. Gọi service xử lý xác thực KYC
             Renter verified = renterServiceImpl.verifyKyc(dto);
+
+            // 🔹 2. Chuyển entity sang DTO (để tránh leak dữ liệu)
+            RenterResponseDTO renterDto = renterServiceImpl.toResponseDto(verified);
+
+            // 🔹 3. Bổ sung thông tin trạng thái KYC
+            String kycStatus = renterServiceImpl.getKycStatusForRenter(verified);
+            renterDto.setKycStatus(kycStatus);
+
+            // 🔹 4. Trả về phản hồi dạng chuẩn
             return ResponseEntity.ok(
-                    ApiResponse.<Renter>builder()
+                    ApiResponse.<RenterResponseDTO>builder()
                             .status("success")
                             .code(200)
-                            .data(verified)
+                            .data(renterDto)
                             .build()
             );
+
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.<String>builder()
@@ -110,25 +124,31 @@ public class RegisterController {
 
 
 
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<?>> loginUser(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Kiểm tra thông tin đăng nhập
             RenterResponseDTO renter = renterServiceImpl.loginRenter(loginRequest.getEmail(), loginRequest.getPassword());
 
-            // 2️⃣ Sinh JWT token có role RENTER
+            // 2️⃣ Sinh JWT token
             String token = jwtTokenUtil.generateTokenWithRole(renter.getEmail(), "RENTER");
 
-            // 3️⃣ Kiểm tra trạng thái KYC
+            // 3️⃣ Lấy trạng thái KYC
             String kycStatus = renterServiceImpl.checkKycStatus(renter.getRenterId());
 
-            // 4️⃣ Trả phản hồi
+            // 4️⃣ Tạo DTO đăng nhập chung (staff/admin/renter đều dùng được)
             LoginResponseDTO authResponse = new LoginResponseDTO(token, renter.getEmail(), kycStatus);
 
-            ApiResponse<LoginResponseDTO> response = ApiResponse.<LoginResponseDTO>builder()
+            // 5️⃣ Dữ liệu trả về cho renter — gói thêm nextStep
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("user", authResponse);
+            responseData.put("nextStep", renter.getNextStep()); // ✅ thêm riêng field này
+
+            ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
                     .status("success")
                     .code(200)
-                    .data(authResponse)
+                    .data(responseData)
                     .build();
 
             return ResponseEntity.ok(response);
@@ -142,6 +162,7 @@ public class RegisterController {
             return ResponseEntity.status(401).body(errorResponse);
         }
     }
+
 
     @PostMapping("/login/staff")
     public ResponseEntity<ApiResponse<?>> loginStaff(@Valid @RequestBody LoginRequestDTO loginRequest) {

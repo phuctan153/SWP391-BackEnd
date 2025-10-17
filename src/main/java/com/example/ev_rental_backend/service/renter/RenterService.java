@@ -23,5 +23,7 @@ public interface RenterService {
 
     public String getKycStatusForRenter(Renter renter);
 
+    public RenterResponseDTO toResponseDto(Renter renter);
+
 
 }

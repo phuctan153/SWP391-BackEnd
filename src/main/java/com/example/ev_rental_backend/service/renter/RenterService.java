@@ -21,5 +21,7 @@ public interface RenterService {
 
     public void deleteRenterById(Long renterId);
 
+    public String getKycStatusForRenter(Renter renter);
+
 
 }

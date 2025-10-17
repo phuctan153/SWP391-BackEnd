@@ -41,6 +41,7 @@ public class OtpVerificationEmail {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.expiresAt = createdAt.plusMinutes(5);
-        this.status = Status.UNVERIFIED;
+        if (this.status == null)
+            this.status = Status.UNVERIFIED;
     }
 }

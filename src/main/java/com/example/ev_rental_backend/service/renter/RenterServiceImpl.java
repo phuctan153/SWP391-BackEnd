@@ -3,10 +3,13 @@ package com.example.ev_rental_backend.service.renter;
 import com.example.ev_rental_backend.dto.renter.KycVerificationDTO;
 import com.example.ev_rental_backend.dto.renter.RenterRequestDTO;
 import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
+import com.example.ev_rental_backend.entity.IdentityDocument;
 import com.example.ev_rental_backend.entity.OtpVerificationEmail;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.mapper.KycMapper;
 import com.example.ev_rental_backend.mapper.RenterMapper;
+import com.example.ev_rental_backend.repository.IdentityDocumentRepository;
+import com.example.ev_rental_backend.repository.OtpVerificationEmailRepository;
 import com.example.ev_rental_backend.repository.RenterRepository;
 import com.example.ev_rental_backend.service.otp.OtpEmailServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -23,6 +27,13 @@ public class RenterServiceImpl implements RenterService{
 
     @Autowired
     RenterRepository renterRepository;
+
+    @Autowired
+    private IdentityDocumentRepository identityDocumentRepository;
+
+    @Autowired
+    private OtpVerificationEmailRepository otpVerificationEmailRepository;
+
 
     @Autowired
     KycMapper kycMapper;
@@ -47,7 +58,7 @@ public class RenterServiceImpl implements RenterService{
         Renter renter = renterMapper.toEntity(dto);
 
         // 🔹 Thiết lập các giá trị mặc định
-//        renter.setStatus(Renter.Status.PENDING_VERIFICATION);
+        renter.setStatus(Renter.Status.PENDING_VERIFICATION);
         renter.setAuthProvider(Renter.AuthProvider.LOCAL);
         renter.setBlacklisted(false);
 
@@ -60,27 +71,57 @@ public class RenterServiceImpl implements RenterService{
 
     @Override
     public RenterResponseDTO loginRenter(String email, String password) {
+        // 🔹 1. Tìm renter theo email
         Renter renter = renterRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
 
+        // 🔹 2. Kiểm tra mật khẩu
         if (!renter.getPassword().equals(password)) {
             throw new RuntimeException("Mật khẩu không chính xác");
         }
 
-        if (!otpEmailServiceImpl.isRenterVerified(renter.getRenterId())) {
-            throw new RuntimeException("Tài khoản chưa được xác thực qua email!");
+        // 🔹 3. Kiểm tra tài khoản bị khoá
+        if (renter.isBlacklisted()) {
+            throw new RuntimeException("Tài khoản của bạn hiện bị tạm khoá. Vui lòng liên hệ hỗ trợ.");
         }
 
-        if (renter.getStatus() == null || !renter.getStatus().equals(Renter.Status.PENDING_VERIFICATION)) {
-            throw new RuntimeException("Tài khoản chưa được xác thực CCCD và GPLX");
+        // 🔹 4. Kiểm tra OTP email đã xác thực chưa
+        boolean isOtpVerified = otpEmailServiceImpl.isRenterVerified(renter.getRenterId());
+        String otpStatus = isOtpVerified ? "VERIFIED" : "PENDING";
+
+        // 🔹 5. Kiểm tra trạng thái KYC (CCCD + GPLX)
+        String kycStatus = getKycStatusForRenter(renter);
+
+        // 🔹 6. Xác định bước tiếp theo cho frontend
+        String nextStep;
+        if (!isOtpVerified) {
+            nextStep = "EMAIL_OTP"; // Cần nhập mã OTP email
+        } else if (!"VERIFIED".equals(kycStatus)) {
+            nextStep = "KYC";       // Cần upload CCCD + GPLX
+        } else {
+            nextStep = "DASHBOARD"; // Đã xác thực đầy đủ → vào trang chính
         }
 
-        return renterMapper.toResponseDto(renter);
+        // 🔹 7. Map sang DTO phản hồi
+        RenterResponseDTO response = renterMapper.toResponseDto(renter);
+        response.setOtpStatus(otpStatus);
+        response.setKycStatus(kycStatus);
+        response.setNextStep(nextStep);
+
+        // 🔹 8. Trả kết quả cho Controller
+        return response;
     }
+
 
 
     @Override
     public Renter verifyKyc(KycVerificationDTO dto) {
+
+        // 🔹 0. Kiểm tra OTP đã được xác thực hay chưa
+        boolean hasVerifiedOtp = otpVerificationEmailRepository.existsVerifiedOtpForRenter(dto.getRenterId());
+        if (!hasVerifiedOtp) {
+            throw new RuntimeException("Renter chưa xác thực OTP. Vui lòng kiểm tra email và xác nhận trước khi gửi KYC.");
+        }
 
         // 🔹 1. Lấy renter
         Renter renter = renterRepository.findById(dto.getRenterId())
@@ -92,16 +133,18 @@ public class RenterServiceImpl implements RenterService{
         }
 
         // 🔹 3. Kiểm tra trùng CCCD / GPLX
-        renterRepository.findByNationalId(dto.getNationalId())
-                .ifPresent(r -> {
-                    if (!r.getRenterId().equals(dto.getRenterId())) {
+        identityDocumentRepository.findByDocumentNumberAndType(
+                        dto.getNationalId(), IdentityDocument.DocumentType.NATIONAL_ID)
+                .ifPresent(doc -> {
+                    if (!doc.getRenter().getRenterId().equals(dto.getRenterId())) {
                         throw new RuntimeException("CCCD này đã được sử dụng bởi người khác.");
                     }
                 });
 
-        renterRepository.findByDriverLicense(dto.getDriverLicense())
-                .ifPresent(r -> {
-                    if (!r.getRenterId().equals(dto.getRenterId())) {
+        identityDocumentRepository.findByDocumentNumberAndType(
+                        dto.getDriverLicense(), IdentityDocument.DocumentType.DRIVER_LICENSE)
+                .ifPresent(doc -> {
+                    if (!doc.getRenter().getRenterId().equals(dto.getRenterId())) {
                         throw new RuntimeException("GPLX này đã được sử dụng bởi người khác.");
                     }
                 });
@@ -116,23 +159,62 @@ public class RenterServiceImpl implements RenterService{
         }
 
         if (dto.getDriverExpireDate().isBefore(today))
-            throw new RuntimeException("GPLX đã hết hạn");
+            throw new RuntimeException("GPLX đã hết hạn.");
 
         // 🔹 5. Kiểm tra tuổi
         int age = Period.between(dto.getNationalDob(), today).getYears();
         if (age < 21)
             throw new RuntimeException("Người dùng chưa đủ 21 tuổi.");
 
-        // 🔹 6. Kiểm tra loại bằng lái xe
-
-
         // 🔹 6. Cập nhật thông tin vào DB
         kycMapper.updateRenterFromKyc(dto, renter);
+        renter.setStatus(Renter.Status.PENDING_VERIFICATION);
 
-        renter.setStatus(Renter.Status.PENDING_VERIFICATION); // thêm dòng này
-        // 🔹 7. Lưu vào DB
+        // 🔹 7. Cập nhật bảng IdentityDocument
+        saveOrUpdateDocument(renter, dto.getNationalId(), IdentityDocument.DocumentType.NATIONAL_ID,
+                dto.getNationalIssueDate(), dto.getNationalExpireDate());
+        saveOrUpdateDocument(renter, dto.getDriverLicense(), IdentityDocument.DocumentType.DRIVER_LICENSE,
+                dto.getDriverIssueDate(), dto.getDriverExpireDate());
+
+        // 🔹 8. Lưu Renter
         return renterRepository.save(renter);
     }
+
+    private void saveOrUpdateDocument(
+            Renter renter,
+            String documentNumber,
+            IdentityDocument.DocumentType type,
+            LocalDate issueDate,
+            LocalDate expiryDate) {
+
+        // 🔹 Tìm xem giấy tờ cùng loại và số này đã tồn tại trong DB chưa
+        Optional<IdentityDocument> existingDocOpt =
+                identityDocumentRepository.findByDocumentNumberAndType(documentNumber, type);
+
+        if (existingDocOpt.isPresent()) {
+            // 🔄 Nếu có rồi → cập nhật lại thông tin
+            IdentityDocument doc = existingDocOpt.get();
+            doc.setIssueDate(issueDate);
+            doc.setExpiryDate(expiryDate);
+            doc.setRenter(renter);
+            doc.setStatus(IdentityDocument.DocumentStatus.PENDING);
+            identityDocumentRepository.save(doc);
+        } else {
+            // 🆕 Nếu chưa có → tạo bản ghi mới
+            IdentityDocument newDoc = IdentityDocument.builder()
+                    .renter(renter)
+                    .type(type)
+                    .documentNumber(documentNumber)
+                    .issueDate(issueDate)
+                    .expiryDate(expiryDate)
+                    .status(IdentityDocument.DocumentStatus.PENDING)
+                    .build();
+            identityDocumentRepository.save(newDoc);
+        }
+    }
+
+
+
 
     private boolean isValidCarLicense(String driverClass) {
         if (driverClass == null || driverClass.isBlank()) return false;
@@ -145,26 +227,58 @@ public class RenterServiceImpl implements RenterService{
 
     @Override
     public String checkKycStatus(Long renterId) {
+        // 🔍 1. Tìm renter trong database
         Renter renter = renterRepository.findById(renterId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy renter với ID: " + renterId));
 
-        boolean hasCCCD = renter.getNationalId() != null && !renter.getNationalId().isEmpty();
-        boolean hasGPLX = renter.getDriverLicense() != null && !renter.getDriverLicense().isEmpty();
+        // ✅ 2. Gọi lại hàm xử lý logic KYC (để tái sử dụng)
+        return getKycStatusForRenter(renter);
+    }
 
+    @Override
+    public String getKycStatusForRenter(Renter renter) {
+        // 📂 1. Lấy danh sách giấy tờ định danh (CCCD, GPLX, ...)
+        List<IdentityDocument> docs = renter.getIdentityDocuments();
+
+        // 🪪 2. Kiểm tra xem renter đã upload CCCD và GPLX chưa
+        boolean hasCCCD = docs.stream()
+                .anyMatch(d -> d.getType() == IdentityDocument.DocumentType.NATIONAL_ID);
+
+        boolean hasGPLX = docs.stream()
+                .anyMatch(d -> d.getType() == IdentityDocument.DocumentType.DRIVER_LICENSE);
+
+        // ❗️ Nếu thiếu 1 trong 2 loại giấy tờ → yêu cầu upload
         if (!hasCCCD || !hasGPLX) {
-            return "NEED_UPLOAD"; // ❗️Cần upload CCCD + GPLX
+            return "NEED_UPLOAD";
         }
 
-        if (renter.getStatus() == Renter.Status.PENDING_VERIFICATION) {
-            return "WAITING_APPROVAL"; // ⏳ Đã upload, chờ admin duyệt
+        // 🔍 3. Kiểm tra trạng thái giấy tờ
+        boolean allPending = docs.stream()
+                .allMatch(d -> d.getStatus() == IdentityDocument.DocumentStatus.PENDING);
+        boolean anyRejected = docs.stream()
+                .anyMatch(d -> d.getStatus() == IdentityDocument.DocumentStatus.REJECTED);
+        boolean allVerified = docs.stream()
+                .allMatch(d -> d.getStatus() == IdentityDocument.DocumentStatus.VERIFIED);
+
+        // ❌ Có giấy tờ bị từ chối
+        if (anyRejected) {
+            return "REJECTED";
         }
 
-        if (renter.getStatus() == Renter.Status.VERIFIED) {
-            return "VERIFIED"; // ✅ Đã xác thực
+        // ⏳ Tất cả giấy tờ đang chờ duyệt
+        if (allPending) {
+            return "WAITING_APPROVAL";
         }
 
+        // ✅ Tất cả giấy tờ đã VERIFIED và renter cũng VERIFIED
+        if (allVerified && renter.getStatus() == Renter.Status.VERIFIED) {
+            return "VERIFIED";
+        }
+
+        // ❓ Không rơi vào bất kỳ trường hợp nào ở trên
         return "UNKNOWN";
     }
+
 
     @Override
     public List<RenterResponseDTO> getPendingVerificationRenters() {
@@ -176,21 +290,33 @@ public class RenterServiceImpl implements RenterService{
 
     @Override
     public RenterResponseDTO verifyRenterById(Long renterId) {
+        // 🔹 1. Tìm renter
         Renter renter = renterRepository.findById(renterId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người thuê có ID: " + renterId));
 
-        if (renter.getStatus() == Renter.Status.VERIFIED) {
-            throw new RuntimeException("Người thuê này đã được xác thực trước đó.");
+        // 🔹 3. Lấy danh sách giấy tờ của renter
+        List<IdentityDocument> docs = renter.getIdentityDocuments();
+
+        if (docs == null || docs.isEmpty()) {
+            throw new RuntimeException("Người thuê chưa gửi giấy tờ KYC.");
         }
 
-        if (renter.getStatus() == Renter.Status.DELETED) {
-            throw new RuntimeException("Không thể xác thực người thuê đã bị xóa.");
+        // 🔹 4. Cập nhật trạng thái giấy tờ thành VERIFIED
+        for (IdentityDocument doc : docs) {
+            if (doc.getStatus() != IdentityDocument.DocumentStatus.VERIFIED) {
+                doc.setStatus(IdentityDocument.DocumentStatus.VERIFIED);
+                doc.setVerifiedAt(LocalDateTime.now());
+                identityDocumentRepository.save(doc);
+            }
         }
 
+        // 🔹 5. Cập nhật trạng thái renter sang VERIFIED
         renter.setStatus(Renter.Status.VERIFIED);
         renterRepository.save(renter);
+
         return renterMapper.toResponseDto(renter);
     }
+
 
     @Override
     public void deleteRenterById(Long renterId) {

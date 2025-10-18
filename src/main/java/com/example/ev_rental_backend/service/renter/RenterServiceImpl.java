@@ -36,10 +36,10 @@ public class RenterServiceImpl implements RenterService{
     WalletRepository walletRepository;
 
     @Autowired
-    private IdentityDocumentRepository identityDocumentRepository;
+    IdentityDocumentRepository identityDocumentRepository;
 
     @Autowired
-    private OtpVerificationEmailRepository otpVerificationEmailRepository;
+    OtpVerificationEmailRepository otpVerificationEmailRepository;
 
 
     @Autowired
@@ -82,7 +82,7 @@ public class RenterServiceImpl implements RenterService{
                     .balance(BigDecimal.ZERO)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
-                    .status(Wallet.Status.INACTIVE) // ✅ ví chỉ kích hoạt sau khi xác thực KYC
+                    .status(Wallet.Status.ACTIVE)
                     .build();
             walletRepository.save(wallet);
         }
@@ -366,15 +366,6 @@ public class RenterServiceImpl implements RenterService{
         renter.setStatus(Renter.Status.VERIFIED);
         renter.setUpdatedAt(LocalDateTime.now());
         renterRepository.save(renter);
-
-        // 🔹 5. Kích hoạt ví (Wallet)
-        walletRepository.findByRenter(renter).ifPresent(wallet -> {
-            if (wallet.getStatus() == Wallet.Status.INACTIVE) {
-                wallet.setStatus(Wallet.Status.ACTIVE);
-                wallet.setCreatedAt(LocalDateTime.now());
-                walletRepository.save(wallet);
-            }
-        });
 
         // 🔹 6. Trả kết quả
         return renterMapper.toResponseDto(renter);

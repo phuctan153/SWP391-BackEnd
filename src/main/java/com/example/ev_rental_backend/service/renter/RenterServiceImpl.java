@@ -4,7 +4,6 @@ import com.example.ev_rental_backend.dto.renter.KycVerificationDTO;
 import com.example.ev_rental_backend.dto.renter.RenterRequestDTO;
 import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
 import com.example.ev_rental_backend.entity.IdentityDocument;
-import com.example.ev_rental_backend.entity.OtpVerificationEmail;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.entity.Wallet;
 import com.example.ev_rental_backend.mapper.KycMapper;
@@ -15,7 +14,6 @@ import com.example.ev_rental_backend.repository.RenterRepository;
 import com.example.ev_rental_backend.repository.WalletRepository;
 import com.example.ev_rental_backend.service.otp.OtpEmailServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cglib.core.Local;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -24,7 +22,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class RenterServiceImpl implements RenterService{

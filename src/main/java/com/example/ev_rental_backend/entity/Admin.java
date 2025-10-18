@@ -1,16 +1,19 @@
 package com.example.ev_rental_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import java.util.List;
 
 @Entity
 @Table(name = "admin")
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Admin {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long globalAdminId;
 
     private String password;
@@ -21,6 +24,11 @@ public class Admin {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    public enum Status { ACTIVE, INACTIVE }
-}
+    // 🔗 1 Admin có thể ký nhiều hợp đồng
+    @OneToMany(mappedBy = "admin", cascade = CascadeType.ALL, orphanRemoval = false)
+    private List<Contract> contracts;
 
+    public enum Status {
+        ACTIVE, INACTIVE
+    }
+}

@@ -62,6 +62,6 @@ public class Vehicle {
     private List<Booking> bookings;
 
     public enum Status {
-        AVAILABLE, RESERVED, IN_USE, MAINTENANCE
+        AVAILABLE, IN_USE, MAINTENANCE, IN_REPAIR, REPAIRED, CANCELLED
     }
 }

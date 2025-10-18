@@ -41,7 +41,7 @@ public class Wallet {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     // Thời gian cập nhật ví
-    @Column(nullable = false)
+    @Column(nullable = true)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     // Danh sách các giao dịch liên quan đến ví

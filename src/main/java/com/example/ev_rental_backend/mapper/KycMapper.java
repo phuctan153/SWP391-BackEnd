@@ -14,18 +14,4 @@ public interface KycMapper {
     @Mapping(target = "address", source = "driverAddress")
     @Mapping(target = "dateOfBirth", source = "nationalDob")
     void updateRenterFromKyc(KycVerificationDTO dto, @MappingTarget Renter renter);
-
-    // Tạo bản ghi cho CCCD (National ID)
-    @Mapping(target = "type", constant = "NATIONAL_ID")
-    @Mapping(target = "documentNumber", source = "nationalId")
-    @Mapping(target = "expiryDate", source = "nationalExpireDate")
-    @Mapping(target = "status", constant = "PENDING")
-    IdentityDocument toNationalIdDocument(KycVerificationDTO dto);
-
-    // Tạo bản ghi cho GPLX (Driver License)
-    @Mapping(target = "type", constant = "DRIVER_LICENSE")
-    @Mapping(target = "documentNumber", source = "driverLicense")
-    @Mapping(target = "expiryDate", source = "driverExpireDate")
-    @Mapping(target = "status", constant = "PENDING")
-    IdentityDocument toDriverLicenseDocument(KycVerificationDTO dto);
 }

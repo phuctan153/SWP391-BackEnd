@@ -89,4 +89,8 @@ public class Renter {
 
     @OneToMany(mappedBy = "renter", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<IdentityDocument> identityDocuments;
+
+    @OneToOne(mappedBy = "renter", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Wallet wallet;
+
 }

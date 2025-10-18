@@ -6,7 +6,6 @@ import com.example.ev_rental_backend.dto.login.LoginResponseDTO;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.entity.Wallet;
 import com.example.ev_rental_backend.repository.RenterRepository;
-import com.example.ev_rental_backend.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,7 +19,6 @@ import java.util.Map;
 public class GoogleAuthServiceImpl implements GoogleAuthService {
 
     private final RenterRepository renterRepository;
-    private final WalletRepository walletRepository;
     private final JwtTokenUtil jwtTokenUtil;
     private final RenterServiceImpl renterServiceImpl;
 
@@ -30,6 +28,15 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
         // 1️⃣ Tìm renter qua Google ID hoặc Email
         Renter renter = renterRepository.findByGoogleId(sub)
                 .or(() -> renterRepository.findByEmail(email))
+                .map(existing -> {
+                    // Nếu renter đã tồn tại nhưng chưa có Google ID, cập nhật vào
+                    if (existing.getGoogleId() == null) {
+                        existing.setGoogleId(sub);
+                        existing.setAuthProvider(Renter.AuthProvider.GOOGLE);
+                        renterRepository.save(existing);
+                    }
+                    return existing;
+                })
                 .orElseGet(() -> {
                     // 2️⃣ Nếu chưa có → tạo renter mới từ Google
                     Renter newRenter = Renter.builder()
@@ -41,36 +48,34 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
                             .isBlacklisted(false)
                             .build();
 
-                    renterRepository.save(newRenter);
-
-                    // 3️⃣ Tạo ví mới (INACTIVE)
+                    // 3️⃣ Tạo ví mới (INACTIVE) và liên kết 2 chiều
                     Wallet wallet = Wallet.builder()
-                            .renter(newRenter)
                             .balance(BigDecimal.ZERO)
-                            .status(Wallet.Status.ACTIVE)
+                            .status(Wallet.Status.INACTIVE)
+                            .renter(newRenter)
                             .build();
-                    walletRepository.save(wallet);
 
-                    return newRenter;
+                    newRenter.setWallet(wallet);
+
+                    // ⚡ Lưu renter, cascade tự lưu luôn wallet
+                    return renterRepository.save(newRenter);
                 });
 
-        // 4️⃣ Lấy trạng thái KYC hiện tại (đã upload CCCD/GPLX chưa)
+        // 4️⃣ Lấy trạng thái KYC hiện tại
         String kycStatus = renterServiceImpl.getKycStatusForRenter(renter);
 
-        // 5️⃣ Xác định bước tiếp theo (nextStep)
+        // 5️⃣ Xác định bước tiếp theo
         String nextStep;
         switch (kycStatus) {
             case "NEED_UPLOAD":
             case "REJECTED":
             case "UNKNOWN":
-                nextStep = "KYC_UPLOAD"; // Cần upload hoặc upload lại CCCD + GPLX
+                nextStep = "KYC_UPLOAD";
                 break;
-
             case "WAITING_APPROVAL":
             case "VERIFIED":
-                nextStep = "DASHBOARD"; // Cho vào dashboard (nếu waiting thì chờ staff duyệt)
+                nextStep = "DASHBOARD";
                 break;
-
             default:
                 nextStep = "KYC_UPLOAD";
                 break;

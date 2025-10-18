@@ -47,7 +47,7 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
                     Wallet wallet = Wallet.builder()
                             .renter(newRenter)
                             .balance(BigDecimal.ZERO)
-                            .status(Wallet.Status.INACTIVE)
+                            .status(Wallet.Status.ACTIVE)
                             .build();
                     walletRepository.save(wallet);
 

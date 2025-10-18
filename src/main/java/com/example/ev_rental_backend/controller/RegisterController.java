@@ -10,7 +10,9 @@ import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
 import com.example.ev_rental_backend.entity.Admin;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.entity.Staff;
+import com.example.ev_rental_backend.service.admin.AdminService;
 import com.example.ev_rental_backend.service.admin.AdminServiceImpl;
+import com.example.ev_rental_backend.service.renter.RenterService;
 import com.example.ev_rental_backend.service.renter.RenterServiceImpl;
 import com.example.ev_rental_backend.service.staff.StaffService;
 import com.example.ev_rental_backend.service.staff.StaffServiceImpl;
@@ -31,13 +33,13 @@ import java.util.Map;
 public class RegisterController {
 
     @Autowired
-    RenterServiceImpl renterServiceImpl;
+    RenterService renterService;
 
     @Autowired
-    StaffServiceImpl staffServiceImpl;
+    StaffService staffService;
 
     @Autowired
-    AdminServiceImpl adminServiceImpl;
+    AdminService adminService;
 
 
     @Autowired
@@ -46,7 +48,7 @@ public class RegisterController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<?>> registerUser(@Valid @RequestBody RenterRequestDTO renterRequestDTO) {
         try {
-            RenterResponseDTO renter = renterServiceImpl.registerRenter(renterRequestDTO);
+            RenterResponseDTO renter = renterService.registerRenter(renterRequestDTO);
 
             ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
                     .status("success")
@@ -83,13 +85,13 @@ public class RegisterController {
     public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody @Valid KycVerificationDTO dto) {
         try {
             // 🔹 1. Gọi service xử lý xác thực KYC
-            Renter verified = renterServiceImpl.verifyKyc(dto);
+            Renter verified = renterService.verifyKyc(dto);
 
             // 🔹 2. Chuyển entity sang DTO (để tránh leak dữ liệu)
-            RenterResponseDTO renterDto = renterServiceImpl.toResponseDto(verified);
+            RenterResponseDTO renterDto = renterService.toResponseDto(verified);
 
             // 🔹 3. Bổ sung thông tin trạng thái KYC
-            String kycStatus = renterServiceImpl.getKycStatusForRenter(verified);
+            String kycStatus = renterService.getKycStatusForRenter(verified);
             renterDto.setKycStatus(kycStatus);
 
             // 🔹 4. Trả về phản hồi dạng chuẩn
@@ -129,13 +131,13 @@ public class RegisterController {
     public ResponseEntity<ApiResponse<?>> loginUser(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Kiểm tra thông tin đăng nhập
-            RenterResponseDTO renter = renterServiceImpl.loginRenter(loginRequest.getEmail(), loginRequest.getPassword());
+            RenterResponseDTO renter = renterService.loginRenter(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token
             String token = jwtTokenUtil.generateTokenWithRole(renter.getEmail(), "RENTER");
 
             // 3️⃣ Lấy trạng thái KYC
-            String kycStatus = renterServiceImpl.checkKycStatus(renter.getRenterId());
+            String kycStatus = renterService.checkKycStatus(renter.getRenterId());
 
             // 4️⃣ Tạo DTO đăng nhập chung (staff/admin/renter đều dùng được)
             LoginResponseDTO authResponse = new LoginResponseDTO(token, renter.getEmail(), kycStatus);
@@ -168,7 +170,7 @@ public class RegisterController {
     public ResponseEntity<ApiResponse<?>> loginStaff(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Xác thực thông tin đăng nhập
-            Staff staff = staffServiceImpl.loginStaff(loginRequest.getEmail(), loginRequest.getPassword());
+            Staff staff = staffService.loginStaff(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token có role STAFF
             String token = jwtTokenUtil.generateTokenWithRole(staff.getEmail(), "STAFF");
@@ -198,7 +200,7 @@ public class RegisterController {
     public ResponseEntity<ApiResponse<?>> loginAdmin(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Xác thực thông tin đăng nhập
-            Admin admin = adminServiceImpl.loginAdmin(loginRequest.getEmail(), loginRequest.getPassword());
+            Admin admin = adminService.loginAdmin(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token có role ADMIN
             String token = jwtTokenUtil.generateTokenWithRole(admin.getEmail(), "ADMIN");

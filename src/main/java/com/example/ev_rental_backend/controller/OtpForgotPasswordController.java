@@ -3,6 +3,7 @@ package com.example.ev_rental_backend.controller;
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.forgot_password.ForgotPasswordRequestDTO;
 import com.example.ev_rental_backend.dto.forgot_password.ResetPasswordWithOtpDTO;
+import com.example.ev_rental_backend.service.otp.OtpForgotPasswordService;
 import com.example.ev_rental_backend.service.otp.OtpForgotPasswordServiceImpl;
 import jakarta.mail.MessagingException;
 import jakarta.validation.Valid;
@@ -17,13 +18,13 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class OtpForgotPasswordController {
 
-    private final OtpForgotPasswordServiceImpl otpForgotPasswordServiceImpl;
+    private final OtpForgotPasswordService otpForgotPasswordService;
 
     // ✅ Bước 1: Gửi OTP đến email người dùng
     @PostMapping("/send")
     public ResponseEntity<ApiResponse<?>> sendForgotPasswordOtp(@RequestBody @Valid ForgotPasswordRequestDTO dto) {
         try {
-            otpForgotPasswordServiceImpl.sendForgotPasswordOtp(dto.getEmail());
+            otpForgotPasswordService.sendForgotPasswordOtp(dto.getEmail());
             return ResponseEntity.ok(ApiResponse.<String>builder()
                     .status("success")
                     .code(200)
@@ -50,7 +51,7 @@ public class OtpForgotPasswordController {
     @PostMapping("/verify-reset")
     public ResponseEntity<ApiResponse<?>> verifyOtpAndResetPassword(@RequestBody @Valid ResetPasswordWithOtpDTO dto) {
         try {
-            otpForgotPasswordServiceImpl.verifyOtpAndResetPassword(dto);
+            otpForgotPasswordService.verifyOtpAndResetPassword(dto);
             return ResponseEntity.ok(ApiResponse.<String>builder()
                     .status("success")
                     .code(200)

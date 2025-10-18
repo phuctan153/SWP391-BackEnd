@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,7 +52,7 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
                     // 3️⃣ Tạo ví mới (INACTIVE) và liên kết 2 chiều
                     Wallet wallet = Wallet.builder()
                             .balance(BigDecimal.ZERO)
-                            .status(Wallet.Status.INACTIVE)
+                            .status(Wallet.Status.ACTIVE)
                             .renter(newRenter)
                             .build();
 

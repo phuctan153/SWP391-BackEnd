@@ -277,6 +277,10 @@ public class RenterServiceImpl implements RenterService{
         // 📂 1. Lấy danh sách giấy tờ định danh (CCCD, GPLX, ...)
         List<IdentityDocument> docs = renter.getIdentityDocuments();
 
+        if (docs == null || docs.isEmpty()) {
+            return "NO_DOCUMENT";
+        }
+
         // 🪪 2. Kiểm tra xem renter đã upload CCCD và GPLX chưa
         boolean hasCCCD = docs.stream()
                 .anyMatch(d -> d.getType() == IdentityDocument.DocumentType.NATIONAL_ID);

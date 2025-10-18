@@ -17,7 +17,7 @@ public class AdminController {
 
     private final BookingService bookingService;
 
-    @GetMapping("/reports/damages")
+    @GetMapping("/reports")
     public ResponseEntity<ApiResponse<?>> getDamageReports() {
         var reports = bookingService.getBookingsWithDamages();
 

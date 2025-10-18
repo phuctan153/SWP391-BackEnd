@@ -81,48 +81,6 @@ public class RegisterController {
     }
 
 
-    @PostMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody @Valid KycVerificationDTO dto) {
-        try {
-            // 🔹 1. Gọi service xử lý xác thực KYC
-            Renter verified = renterService.verifyKyc(dto);
-
-            // 🔹 2. Chuyển entity sang DTO (để tránh leak dữ liệu)
-            RenterResponseDTO renterDto = renterService.toResponseDto(verified);
-
-            // 🔹 3. Bổ sung thông tin trạng thái KYC
-            String kycStatus = renterService.getKycStatusForRenter(verified);
-            renterDto.setKycStatus(kycStatus);
-
-            // 🔹 4. Trả về phản hồi dạng chuẩn
-            return ResponseEntity.ok(
-                    ApiResponse.<RenterResponseDTO>builder()
-                            .status("success")
-                            .code(200)
-                            .data(renterDto)
-                            .build()
-            );
-
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.<String>builder()
-                            .status("error")
-                            .code(400)
-                            .data(e.getMessage())
-                            .build()
-            );
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(
-                    ApiResponse.<String>builder()
-                            .status("error")
-                            .code(500)
-                            .data("Lỗi hệ thống: " + e.getMessage())
-                            .build()
-            );
-        }
-    }
-
-
 
 
 

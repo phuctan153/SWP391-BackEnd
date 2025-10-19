@@ -12,7 +12,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface BookingMapper {
 
-    @Mapping(target = "vehicleName", source = "vehicle.name")
+    @Mapping(target = "vehicleName", source = "vehicle.vehicleName")
     @Mapping(target = "vehiclePlateNumber", source = "vehicle.plateNumber")
     @Mapping(target = "renter", expression = "java(toRenterShortInfo(booking.getRenter()))")
     @Mapping(target = "images", expression = "java(toImageDTOList(booking.getImages()))")

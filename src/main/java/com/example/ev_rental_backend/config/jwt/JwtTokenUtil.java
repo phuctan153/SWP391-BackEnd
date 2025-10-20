@@ -11,27 +11,29 @@ import java.util.Map;
 
 @Component
 public class JwtTokenUtil {
-    private static final String SECRET_KEY = "mysecretkeyforjwtshouldbeatleast32characters"; // tối thiểu 32 ký tự
+    private static final String SECRET_KEY = "mysecretkeyforjwtshouldbeatleast32characters";
     private static final long EXPIRATION_TIME = 1000 * 60 * 60 * 5; // 5 giờ
 
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
 
-    // ✅ Sinh token có cả email và role
-    public String generateTokenWithRole(String email, String role) {
+    // ✅ Sinh token chứa cả userId + email + role
+    public String generateTokenWithRoleAndId(Long userId, String email, String role) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
         claims.put("role", role);
+
         return Jwts.builder()
                 .setClaims(claims)
-                .setSubject(email)
+                .setSubject(email) // email làm subject
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // ✅ Lấy toàn bộ claim (để đọc role / email)
+    // ✅ Lấy toàn bộ claim
     public Claims extractAllClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -40,17 +42,23 @@ public class JwtTokenUtil {
                 .getBody();
     }
 
-    // Lấy email (subject)
+    // ✅ Lấy email (subject)
     public String extractEmail(String token) {
         return extractAllClaims(token).getSubject();
     }
 
-    // ✅ Lấy role từ token
+    // ✅ Lấy role
     public String extractRole(String token) {
         return extractAllClaims(token).get("role", String.class);
     }
 
-    // Kiểm tra token hợp lệ
+    // ✅ Lấy userId
+    public Long extractUserId(String token) {
+        Object id = extractAllClaims(token).get("userId");
+        return (id instanceof Integer) ? ((Integer) id).longValue() : (Long) id;
+    }
+
+    // ✅ Kiểm tra token hợp lệ
     public boolean isTokenValid(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);

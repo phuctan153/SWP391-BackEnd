@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Hợp đồng thuê xe điện</title>
+    <style>
+        body {
+            font-family: "DejaVu Sans", sans-serif;
+            line-height: 1.6;
+            font-size: 13px;
+            margin: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            margin-top: 25px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+
+        .info {
+            margin-top: 20px;
+            margin-bottom: 25px;
+        }
+
+        .info p {
+            margin: 4px 0;
+        }
+
+        .term {
+            margin-bottom: 15px;
+        }
+
+        .term-title {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .term-content {
+            margin-left: 15px;
+            text-align: justify;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #999;
+            margin: 25px 0;
+        }
+
+        .sign {
+            margin-top: 40px;
+            text-align: right;
+        }
+
+        .sign p {
+            margin: 5px 0;
+        }
+
+        .footer {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>HỢP ĐỒNG THUÊ XE ĐIỆN</h1>
+
+<div class="info">
+    <p><b>Ngày lập hợp đồng:</b> ${contractDate}</p>
+    <p><b>Người thuê:</b> ${renterName}</p>
+    <p><b>Email:</b> ${renterEmail}</p>
+    <p><b>Số điện thoại:</b> ${renterPhone}</p>
+    <p><b>Nhân viên phụ trách:</b> ${staffName}</p>
+    <p><b>Tên xe:</b> ${vehicleName}</p>
+    <p><b>Biển số xe:</b> ${vehiclePlate}</p>
+    <p><b>Thời gian thuê:</b> ${startDate} → ${endDate}</p>
+    <p><b>Giá thuê:</b> ${pricePerHour} VNĐ/giờ</p>
+
+    <#-- ✅ Hiển thị admin nếu có -->
+    <#if adminName?has_content>
+    <p><b>Quản trị viên phê duyệt:</b> ${adminName}</p>
+</#if>
+</div>
+
+<hr/>
+
+<h2>ĐIỀU KHOẢN HỢP ĐỒNG</h2>
+
+<div class="terms">
+    <#list terms as term>
+    <div class="term">
+        <div class="term-title">${term.termNumber}. ${term.termTitle}</div>
+        <div class="term-content">${term.termContent}</div>
+    </div>
+</#list>
+</div>
+
+<hr/>
+
+<div class="sign">
+    <p><b>Người thuê:</b>
+        <#if contractStatus == "FULLY_SIGNED">
+        ✅ ĐÃ KÝ
+        <#elseif contractStatus == "ADMIN_SIGNED">
+        ⏳ CHỜ NGƯỜI THUÊ KÝ
+        <#else>
+        __________________________
+    </#if>
+    </p>
+
+    <p><b>Quản trị viên phê duyệt:</b>
+        <#if contractStatus == "ADMIN_SIGNED" || contractStatus == "FULLY_SIGNED">
+        ✅ ĐÃ PHÊ DUYỆT
+        <#elseif contractStatus == "PENDING_ADMIN_SIGNATURE">
+        ⏳ CHỜ PHÊ DUYỆT
+        <#else>
+        __________________________
+    </#if>
+    </p>
+</div>
+
+<div class="footer">
+    <hr/>
+    <p>EV Rental System © ${.now?string("yyyy")} - Mọi quyền được bảo lưu.</p>
+</div>
+
+</body>
+</html>

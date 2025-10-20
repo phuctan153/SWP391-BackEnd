@@ -92,7 +92,11 @@ public class RegisterController {
             RenterResponseDTO renter = renterService.loginRenter(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token
-            String token = jwtTokenUtil.generateTokenWithRole(renter.getEmail(), "RENTER");
+            String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                    renter.getRenterId(),     // ✅ userId
+                    renter.getEmail(),        // ✅ email (subject)
+                    "RENTER"                  // ✅ role
+            );
 
             // 3️⃣ Lấy trạng thái KYC
             String kycStatus = renterService.checkKycStatus(renter.getRenterId());
@@ -131,7 +135,11 @@ public class RegisterController {
             Staff staff = staffService.loginStaff(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token có role STAFF
-            String token = jwtTokenUtil.generateTokenWithRole(staff.getEmail(), "STAFF");
+            String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                    staff.getStaffId(),     // ✅ userId
+                    staff.getEmail(),        // ✅ email (subject)
+                    "STAFF"                  // ✅ role
+            );
 
             // 3️⃣ Chuẩn bị phản hồi
             LoginResponseDTO authResponse = new LoginResponseDTO(token, staff.getEmail(), staff.getStatus().name());
@@ -161,7 +169,11 @@ public class RegisterController {
             Admin admin = adminService.loginAdmin(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token có role ADMIN
-            String token = jwtTokenUtil.generateTokenWithRole(admin.getEmail(), "ADMIN");
+            String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                    admin.getGlobalAdminId(),     // ✅ userId
+                    admin.getEmail(),        // ✅ email (subject)
+                    "ADMIN"                  // ✅ role
+            );
 
             // 3️⃣ Gộp thông tin trả về
             LoginResponseDTO authResponse = new LoginResponseDTO(token, admin.getEmail(), admin.getStatus().name());

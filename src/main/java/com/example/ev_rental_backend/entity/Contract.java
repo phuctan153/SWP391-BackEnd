@@ -21,6 +21,9 @@ public class Contract {
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
+    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<TermCondition> terms = new java.util.ArrayList<>();
+
     // 🔗 FK → Admin (n-1)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "admin_id")

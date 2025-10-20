@@ -83,7 +83,12 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
         }
 
         // 6️⃣ Sinh JWT token
-        String token = jwtTokenUtil.generateTokenWithRole(renter.getEmail(), "RENTER");
+        String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                renter.getRenterId(),     // ✅ userId
+                renter.getEmail(),        // ✅ email (subject)
+                "RENTER"                  // ✅ role
+        );
+
 
         // 7️⃣ Tạo DTO trả về FE
         LoginResponseDTO loginResponse = new LoginResponseDTO(token, renter.getEmail(), kycStatus);

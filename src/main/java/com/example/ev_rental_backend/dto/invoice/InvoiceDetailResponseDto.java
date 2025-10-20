@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.dto.invoice;
 
+import com.example.ev_rental_backend.entity.InvoiceDetail;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -9,11 +10,14 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InvoiceLineResponseDTO {
-    private Long invoiceLineId;
-    private String type;
+public class InvoiceDetailResponseDto {
+
+    private Long invoiceDetailId;
+    private InvoiceDetail.LineType type;
+    private Long priceListId;
+    private String itemName;
     private String description;
-    private int quantity;
+    private Integer quantity;
     private Double unitPrice;
     private Double lineTotal;
 }

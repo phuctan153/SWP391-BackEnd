@@ -1,27 +1,32 @@
 package com.example.ev_rental_backend.service.payment;
 
-import com.example.ev_rental_backend.dto.invoice.InvoiceSummaryDTO;
-import com.example.ev_rental_backend.dto.payment.PaymentInitRequestDTO;
-import com.example.ev_rental_backend.dto.payment.PaymentResponseDTO;
+import com.example.ev_rental_backend.dto.payment.*;
+import com.example.ev_rental_backend.entity.Invoice;
 
 public interface PaymentService {
+
+    public PaymentResponseDto payByCash(Long invoiceId, PaymentRequestDto requestDto);
     /**
-     * Khởi tạo thanh toán cho invoice
+     * Thanh toán bằng ví (BR-30)
      */
-    PaymentResponseDTO initPayment(PaymentInitRequestDTO requestDTO);
+    public PaymentResponseDto payByWallet(Long invoiceId, PaymentRequestDto requestDto);
 
     /**
-     * Lấy thông tin invoice
+     * Thanh toán qua MoMo (BR-30)
      */
-    InvoiceSummaryDTO getInvoiceSummary(Long invoiceId);
+    public MomoPaymentResponseDto payByMomo(Long invoiceId, PaymentRequestDto requestDto);
+    /**
+     * Thử lại giao dịch thất bại (BR-29)
+     */
+    public PaymentResponseDto retryPayment(Long invoiceId, RetryPaymentRequestDto requestDto);
 
     /**
-     * Xử lý callback thành công từ Momo
+     * Lấy chi tiết giao dịch
      */
-    void handlePaymentSuccess(Long invoiceId, String transactionId, Double amount);
+    public TransactionResponseDto getTransactionById(Long transactionId);
 
     /**
-     * Xử lý callback thất bại từ Momo
+     * Xử lý callback từ MoMo
      */
-    void handlePaymentFailed(Long invoiceId, String reason);
+    public void handleMomoCallback(MomoCallbackDto callbackDto);
 }

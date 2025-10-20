@@ -16,8 +16,8 @@ public interface RenterRepository extends JpaRepository<Renter, Long> {
     Optional<Renter> findByGoogleId(String googleId);
 
     // 🔹 Kiểm tra xác minh KYC
-    Optional<Renter> findByNationalId(String nationalId);
-    Optional<Renter> findByDriverLicense(String driverLicense);
+//    Optional<Renter> findByRenterId(String nationalId);
+//    Optional<Renter> findByDriverLicense(String driverLicense);
 
     List<Renter> findByStatus(Renter.Status status);
 }

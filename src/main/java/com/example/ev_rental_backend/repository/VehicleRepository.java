@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,12 +16,14 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     @Query("SELECT v FROM Vehicle v WHERE v.station.stationId = :stationId")
     List<Vehicle> findByStationId(Long stationId);
 
-    boolean existsByPlateNumber(String plateNumber);
-    Optional<Vehicle> findByPlateNumber(String plateNumber);
-
-    @Query("SELECT v FROM Vehicle v " +
-            "LEFT JOIN FETCH v.station " +
-            "LEFT JOIN FETCH v.model " +
-            "WHERE v.vehicleId = :vehicleId")
-    Optional<Vehicle> findByIdWithStationAndModel(Long vehicleId);
+    // ✅ BR-07, BR-22: Only show vehicles that are AVAILABLE and not booked in the given range
+    @Query("""
+        SELECT v FROM Vehicle v
+        WHERE v.status = 'AVAILABLE'
+          AND v.vehicleId NOT IN (
+            SELECT b.vehicle.vehicleId FROM Booking b
+            WHERE (b.startDateTime <= :end AND b.endDateTime >= :start)
+          )
+        """)
+    List<Vehicle> findAvailableVehicles(LocalDateTime start, LocalDateTime end);
 }

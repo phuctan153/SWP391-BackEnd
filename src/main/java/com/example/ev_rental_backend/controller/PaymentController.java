@@ -1,14 +1,13 @@
 package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
-import com.example.ev_rental_backend.dto.invoice.InvoiceSummaryDTO;
-import com.example.ev_rental_backend.dto.payment.PaymentInitRequestDTO;
-import com.example.ev_rental_backend.dto.payment.PaymentResponseDTO;
+import com.example.ev_rental_backend.dto.payment.*;
 import com.example.ev_rental_backend.service.payment.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -18,42 +17,98 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
+    // 7.3. Payment Processing
+
     /**
-     * API khởi tạo thanh toán
-     * POST /api/payments/init
+     * POST /api/payments/invoice/{invoiceId}/cash - Thanh toán bằng tiền mặt
      */
-    @PostMapping("/init")
-    public ResponseEntity<ApiResponse<PaymentResponseDTO>> initPayment(
-            @Valid @RequestBody PaymentInitRequestDTO requestDTO) {
-
-        PaymentResponseDTO paymentData = paymentService.initPayment(requestDTO);
-
-        ApiResponse<PaymentResponseDTO> response = ApiResponse.<PaymentResponseDTO>builder()
+    @PostMapping("/invoice/{invoiceId}/cash")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<PaymentResponseDto>> payByCash(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody PaymentRequestDto requestDto) {
+        PaymentResponseDto payment = paymentService.payByCash(invoiceId, requestDto);
+        return ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
-                .data(paymentData)
-                .build();
-
-        return ResponseEntity.ok(response);
+                .data(payment)
+                .build());
     }
 
     /**
-     * API lấy thông tin invoice
-     * GET /api/payments/invoice/{invoiceId}
+     * POST /api/payments/invoice/{invoiceId}/wallet - Thanh toán bằng ví (BR-30)
      */
-    @GetMapping("/invoice/{invoiceId}")
-    public ResponseEntity<ApiResponse<InvoiceSummaryDTO>> getInvoiceSummary(
-            @PathVariable Long invoiceId) {
-
-        InvoiceSummaryDTO invoiceData = paymentService.getInvoiceSummary(invoiceId);
-
-        ApiResponse<InvoiceSummaryDTO> response = ApiResponse.<InvoiceSummaryDTO>builder()
+    @PostMapping("/invoice/{invoiceId}/wallet")
+    @PreAuthorize("hasRole('RENTER')")
+    public ResponseEntity<ApiResponse<PaymentResponseDto>> payByWallet(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody PaymentRequestDto requestDto) {
+        PaymentResponseDto payment = paymentService.payByWallet(invoiceId, requestDto);
+        return ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
-                .data(invoiceData)
-                .build();
-
-        return ResponseEntity.ok(response);
+                .data(payment)
+                .build());
     }
 
+    /**
+     * POST /api/payments/invoice/{invoiceId}/momo - Thanh toán qua MoMo (BR-30)
+     */
+    @PostMapping("/invoice/{invoiceId}/momo")
+    @PreAuthorize("hasRole('RENTER')")
+    public ResponseEntity<ApiResponse<MomoPaymentResponseDto>> payByMomo(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody PaymentRequestDto requestDto) {
+        MomoPaymentResponseDto payment = paymentService.payByMomo(invoiceId, requestDto);
+        return ResponseEntity.ok(ApiResponse.<MomoPaymentResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(payment)
+                .build());
+    }
+
+    /**
+     * POST /api/payments/invoice/{invoiceId}/retry - Thử lại giao dịch thất bại (BR-29)
+     */
+    @PostMapping("/invoice/{invoiceId}/retry")
+    @PreAuthorize("hasRole('RENTER')")
+    public ResponseEntity<ApiResponse<PaymentResponseDto>> retryPayment(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody RetryPaymentRequestDto requestDto) {
+        PaymentResponseDto payment = paymentService.retryPayment(invoiceId, requestDto);
+        return ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(payment)
+                .build());
+    }
+
+    /**
+     * GET /api/payments/transactions/{transactionId} - Chi tiết giao dịch
+     */
+    @GetMapping("/transactions/{transactionId}")
+    @PreAuthorize("hasAnyRole('RENTER', 'STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<TransactionResponseDto>> getTransactionById(
+            @PathVariable Long transactionId) {
+        TransactionResponseDto transaction = paymentService.getTransactionById(transactionId);
+        return ResponseEntity.ok(ApiResponse.<TransactionResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(transaction)
+                .build());
+    }
+
+    /**
+     * POST /api/payments/momo/callback - Webhook nhận kết quả từ MoMo
+     */
+    @PostMapping("/momo/callback")
+    public ResponseEntity<ApiResponse<String>> momoCallback(
+            @RequestBody MomoCallbackDto callbackDto) {
+        paymentService.handleMomoCallback(callbackDto);
+        return ResponseEntity.ok(ApiResponse.<String>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data("Callback processed successfully")
+                .build());
+    }
 }

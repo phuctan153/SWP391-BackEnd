@@ -11,23 +11,18 @@ import java.util.Optional;
 
 @Repository
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
-
-    /**
-     * Tìm transaction theo invoice
-     */
     List<PaymentTransaction> findByInvoice_InvoiceId(Long invoiceId);
 
-    /**
-     * Tìm transaction thành công gần nhất của invoice
-     */
-    @Query("SELECT pt FROM PaymentTransaction pt " +
-            "WHERE pt.invoice.invoiceId = :invoiceId " +
-            "AND pt.status = 'SUCCESS' " +
-            "ORDER BY pt.transactionTime DESC")
-    Optional<PaymentTransaction> findLatestSuccessTransaction(@Param("invoiceId") Long invoiceId);
+    List<PaymentTransaction> findByWallet_WalletId(Long walletId);
 
-    /**
-     * Kiểm tra invoice đã có transaction thành công chưa
-     */
-    boolean existsByInvoice_InvoiceIdAndStatus(Long invoiceId, PaymentTransaction.Status status);
+    @Query("SELECT pt FROM PaymentTransaction pt WHERE pt.invoice.invoiceId = :invoiceId " +
+            "AND pt.status = :status")
+    List<PaymentTransaction> findByInvoiceIdAndStatus(@Param("invoiceId") Long invoiceId,
+                                                      @Param("status") PaymentTransaction.Status status);
+
+    @Query("SELECT pt FROM PaymentTransaction pt WHERE pt.status = :status " +
+            "AND pt.transactionType IN :types")
+    List<PaymentTransaction> findByStatusAndTransactionTypeIn(
+            @Param("status") PaymentTransaction.Status status,
+            @Param("types") List<PaymentTransaction.TransactionType> types);
 }

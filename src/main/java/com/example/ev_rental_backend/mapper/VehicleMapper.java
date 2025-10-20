@@ -20,41 +20,6 @@ public interface VehicleMapper {
 
     List<VehicleResponseDTO> toResponseDtoList(List<Vehicle> vehicles);
 
-    @Mapping(target = "vehicleId", ignore = true)
-    @Mapping(target = "station", ignore = true)
-    @Mapping(target = "model", ignore = true)
-    @Mapping(target = "bookings", ignore = true)
-    @Mapping(target = "status", source = "status", qualifiedByName = "stringToStatus")
-    Vehicle toEntity(VehicleRequestDTO dto);
-
-    @Mapping(target = "status", expression = "java(vehicle.getStatus() != null ? vehicle.getStatus().toString() : null)")
-    @Mapping(target = "station", source = "station")
-    @Mapping(target = "model", source = "model")
-    VehicleResDTO toDto(Vehicle vehicle);
-
-    @Mapping(target = "carNumber", source = "car_number")
-    @Mapping(target = "status", expression = "java(station.getStatus() != null ? station.getStatus().toString() : null)")
-    VehicleResDTO.StationBasicDTO toStationBasicDto(Station station);
-
-    @Mapping(target = "modelId", source = "modelId")
-    @Mapping(target = "modelName", source = "modelName")
-    @Mapping(target = "manufacturer", source = "manufacturer")
-    @Mapping(target = "batteryCapacity", source = "batteryCapacity")
-    @Mapping(target = "seatingCapacity", source = "seatingCapacity")
-    VehicleResDTO.VehicleModelBasicDTO toVehicleModelBasicDto(VehicleModel model);
-
-    /**
-     * Custom mapping: String -> Vehicle.Status enum
-     */
-    @Named("stringToStatus")
-    default Vehicle.Status stringToStatus(String status) {
-        if (status == null || status.isBlank()) {
-            return Vehicle.Status.AVAILABLE;
-        }
-        try {
-            return Vehicle.Status.valueOf(status.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return Vehicle.Status.AVAILABLE;
-        }
-    }
+    @Mapping(source = "station.name", target = "stationName")
+    VehicleResDTO toResponseDTO(Vehicle vehicle);
 }

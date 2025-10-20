@@ -1,20 +1,20 @@
 package com.example.ev_rental_backend.service.Invoice;
 
-import com.example.ev_rental_backend.dto.invoice.InvoiceCreateRequestDTO;
-import com.example.ev_rental_backend.dto.invoice.InvoiceResponseDTO;
+import com.example.ev_rental_backend.dto.invoice.*;
 import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.entity.Invoice;
 import com.example.ev_rental_backend.entity.InvoiceDetail;
-import com.example.ev_rental_backend.entity.SparePart;
+import com.example.ev_rental_backend.entity.PriceList;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
 import com.example.ev_rental_backend.mapper.InvoiceMapper;
 import com.example.ev_rental_backend.repository.BookingRepository;
 import com.example.ev_rental_backend.repository.InvoiceDetailRepository;
 import com.example.ev_rental_backend.repository.InvoiceRepository;
-import com.example.ev_rental_backend.repository.SparePartRepository;
+import com.example.ev_rental_backend.repository.PriceListRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,172 +30,215 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceRepository invoiceRepository;
     private final BookingRepository bookingRepository;
     private final InvoiceDetailRepository invoiceDetailRepository;
-    private final SparePartRepository sparePartRepository;
-    private final InvoiceMapper invoiceMapper;
+    private final PriceListRepository priceListRepository;
 
     /**
-     * Lấy chi tiết invoice theo ID
+     * Lấy chi tiết hóa đơn
      */
-    @Override
-    public InvoiceResponseDTO getInvoiceById(Long invoiceId) {
-        Invoice invoice = invoiceRepository.findByIdWithDetails(invoiceId)
-                .orElseThrow(() -> new NotFoundException(
-                        "Không tìm thấy invoice với ID: " + invoiceId
-                ));
-
-        return invoiceMapper.toDto(invoice);
+    public InvoiceResponseDto getInvoiceById(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
+        return mapToResponseDto(invoice);
     }
 
     /**
-     * Lấy danh sách invoice của booking
+     * Lấy danh sách hóa đơn của booking
      */
-    @Override
-    public List<InvoiceResponseDTO> getInvoicesByBookingId(Long bookingId) {
-        // Kiểm tra booking tồn tại
-        if (!bookingRepository.existsById(bookingId)) {
-            throw new NotFoundException("Không tìm thấy booking với ID: " + bookingId);
-        }
+    public List<InvoiceResponseDto> getInvoicesByBookingId(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
 
-        List<Invoice> invoices = invoiceRepository.findByBooking_BookingId(bookingId);
-
-        return invoices.stream()
-                .map(invoice -> {
-                    // Fetch chi tiết từng invoice
-                    Invoice detailedInvoice = invoiceRepository
-                            .findByIdWithDetails(invoice.getInvoiceId())
-                            .orElse(invoice);
-                    return invoiceMapper.toDto(detailedInvoice);
-                })
+        return booking.getInvoices().stream()
+                .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Tạo invoice Final (sau khi trả xe)
+     * Tạo hóa đơn đặt cọc (BR-06, BR-23)
      */
-    @Override
-    @Transactional
-    public InvoiceResponseDTO createFinalInvoice(InvoiceCreateRequestDTO requestDTO) {
-        // 1. Validate booking
-        Booking booking = bookingRepository.findById(requestDTO.getBookingId())
-                .orElseThrow(() -> new NotFoundException(
-                        "Không tìm thấy booking với ID: " + requestDTO.getBookingId()
-                ));
+    public InvoiceResponseDto createDepositInvoice(Long bookingId, CreateDepositInvoiceDto requestDto) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
 
-        // 2. Kiểm tra booking đã trả xe chưa
-        if (booking.getStatus() != Booking.Status.COMPLETED) {
-            throw new CustomException(
-                    "Chỉ có thể tạo invoice Final khi booking đã hoàn tất (status = COMPLETED)"
-            );
+        // Kiểm tra booking phải ở trạng thái RESERVED
+        if (booking.getStatus() != Booking.Status.RESERVED) {
+            throw new CustomException("Can only create deposit invoice for RESERVED booking",
+                    HttpStatus.BAD_REQUEST);
         }
 
-        // 3. Kiểm tra đã có invoice Final chưa
-        boolean hasFinalInvoice = invoiceRepository.existsByBooking_BookingIdAndType(
-                requestDTO.getBookingId(),
-                Invoice.Type.Final
-        );
+        // Kiểm tra xem đã có deposit invoice chưa
+        boolean hasDepositInvoice = booking.getInvoices().stream()
+                .anyMatch(inv -> inv.getType() == Invoice.Type.DEPOSIT);
 
-        if (hasFinalInvoice) {
-            throw new CustomException("Booking này đã có invoice Final");
+        if (hasDepositInvoice) {
+            throw new CustomException("Deposit invoice already exists for this booking",
+                    HttpStatus.BAD_REQUEST);
         }
 
-        // 4. Lấy invoice Deposit để tính deposit amount
-        Invoice depositInvoice = invoiceRepository
-                .findByBooking_BookingIdAndType(requestDTO.getBookingId(), Invoice.Type.Deposit)
-                .orElse(null);
-
-        Double depositAmount = (depositInvoice != null) ? depositInvoice.getTotalAmount() : 0.0;
-
-        // 5. Tính tổng tiền từ line items
-        Double totalAmount = 0.0;
-
-        if (requestDTO.getLineItems() != null && !requestDTO.getLineItems().isEmpty()) {
-            for (InvoiceCreateRequestDTO.InvoiceLineItemDTO item : requestDTO.getLineItems()) {
-                Double lineTotal = item.getQuantity() * item.getUnitPrice();
-                totalAmount += lineTotal;
-            }
-        }
-
-        // Thêm chi phí thuê xe cơ bản
-        Double rentalCost = booking.getTotalAmount();
-        totalAmount += rentalCost;
-
-        // Trừ deposit
-        totalAmount -= depositAmount;
-
-        // 6. Tạo Invoice entity
+        // Tạo deposit invoice
         Invoice invoice = Invoice.builder()
                 .booking(booking)
-                .type(Invoice.Type.Final)
-                .depositAmount(depositAmount)
-                .totalAmount(totalAmount)
-                .status(Invoice.Status.PENDING)
-                .notes(requestDTO.getNotes())
+                .type(Invoice.Type.DEPOSIT)
+                .depositAmount(requestDto.getDepositAmount())
+                .totalAmount(requestDto.getDepositAmount())
+                .status(Invoice.Status.UNPAID)
+                .paymentMethod(Invoice.PaymentMethod.CASH)
+                .notes(requestDto.getNotes())
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
+        return mapToResponseDto(savedInvoice);
+    }
 
-        // 7. Tạo line items
-        List<InvoiceDetail> lineItems = new ArrayList<>();
+    /**
+     * Tạo hóa đơn cuối (BR-27)
+     */
+    public InvoiceResponseDto createFinalInvoice(Long bookingId, CreateFinalInvoiceDto requestDto) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
 
-        // Line item cho chi phí thuê xe
-        InvoiceDetail rentalLine = InvoiceDetail.builder()
-                .invoice(savedInvoice)
-                .type(InvoiceDetail.LineType.SERVICE)
-                .description("Chi phí thuê xe")
-                .quantity(1)
-                .unitPrice(rentalCost)
-                .lineTotal(rentalCost)
-                .build();
-        lineItems.add(rentalLine);
-
-        // Các line items khác (spare parts, penalties)
-        if (requestDTO.getLineItems() != null) {
-            for (InvoiceCreateRequestDTO.InvoiceLineItemDTO itemDto : requestDTO.getLineItems()) {
-                InvoiceDetail.LineType lineType = InvoiceDetail.LineType.valueOf(itemDto.getType());
-
-                InvoiceDetail line = InvoiceDetail.builder()
-                        .invoice(savedInvoice)
-                        .type(lineType)
-                        .description(itemDto.getDescription())
-                        .quantity(itemDto.getQuantity())
-                        .unitPrice(itemDto.getUnitPrice())
-                        .build();
-
-                // Nếu là SPAREPART, gán spare part
-                if (lineType == InvoiceDetail.LineType.SPAREPART && itemDto.getSparepartId() != null) {
-                    SparePart sparePart = sparePartRepository.findById(itemDto.getSparepartId())
-                            .orElseThrow(() -> new NotFoundException(
-                                    "Không tìm thấy spare part với ID: " + itemDto.getSparepartId()
-                            ));
-
-                    // Kiểm tra tồn kho
-                    if (sparePart.getStockQuantity() < itemDto.getQuantity()) {
-                        throw new CustomException(
-                                "Spare part '" + sparePart.getPartName() +
-                                        "' không đủ tồn kho (còn " + sparePart.getStockQuantity() + ")"
-                        );
-                    }
-
-                    line.setSparePart(sparePart);
-
-                    // Trừ tồn kho
-                    sparePart.setStockQuantity(sparePart.getStockQuantity() - itemDto.getQuantity());
-                    sparePartRepository.save(sparePart);
-                }
-
-                lineItems.add(line);
-            }
+        // Kiểm tra booking phải ở trạng thái COMPLETED
+        if (booking.getStatus() != Booking.Status.COMPLETED) {
+            throw new CustomException("Can only create final invoice for COMPLETED booking",
+                    HttpStatus.BAD_REQUEST);
         }
 
-        invoiceDetailRepository.saveAll(lineItems);
+        // Kiểm tra xem đã có final invoice chưa
+        boolean hasFinalInvoice = booking.getInvoices().stream()
+                .anyMatch(inv -> inv.getType() == Invoice.Type.FINAL);
 
-        log.info("Created Final invoice {} for booking {}", savedInvoice.getInvoiceId(), booking.getBookingId());
+        if (hasFinalInvoice) {
+            throw new CustomException("Final invoice already exists for this booking",
+                    HttpStatus.BAD_REQUEST);
+        }
 
-        // 8. Fetch lại invoice với đầy đủ thông tin
-        Invoice invoiceWithDetails = invoiceRepository
-                .findByIdWithDetails(savedInvoice.getInvoiceId())
-                .orElse(savedInvoice);
+        // Lấy số tiền đã đặt cọc
+        Double depositAmount = booking.getInvoices().stream()
+                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT
+                        && inv.getStatus() == Invoice.Status.PAID)
+                .findFirst()
+                .map(Invoice::getDepositAmount)
+                .orElse(0.0);
 
-        return invoiceMapper.toDto(invoiceWithDetails);
+        // Tạo final invoice
+        Invoice invoice = Invoice.builder()
+                .booking(booking)
+                .type(Invoice.Type.FINAL)
+                .depositAmount(depositAmount)
+                .totalAmount(requestDto.getTotalAmount())
+                .status(Invoice.Status.UNPAID)
+                .paymentMethod(Invoice.PaymentMethod.CASH)
+                .notes(requestDto.getNotes())
+                .build();
+
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        return mapToResponseDto(savedInvoice);
+    }
+
+    /**
+     * Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
+     */
+    public InvoiceDetailResponseDto addInvoiceDetail(Long invoiceId, CreateInvoiceDetailDto requestDto) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
+
+        // Kiểm tra invoice chưa được thanh toán
+        if (invoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Cannot add details to paid invoice",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        PriceList priceList = null;
+        if (requestDto.getPriceListId() != null) {
+            priceList = priceListRepository.findById(requestDto.getPriceListId())
+                    .orElseThrow(() -> new NotFoundException("Price list not found"));
+        }
+
+        // Tạo invoice detail
+        InvoiceDetail detail = InvoiceDetail.builder()
+                .invoice(invoice)
+                .type(requestDto.getType())
+                .priceList(priceList)
+                .description(requestDto.getDescription())
+                .quantity(requestDto.getQuantity())
+                .unitPrice(requestDto.getUnitPrice())
+                .build();
+
+        InvoiceDetail savedDetail = invoiceDetailRepository.save(detail);
+
+        // Cập nhật tổng tiền invoice
+        updateInvoiceTotalAmount(invoice);
+
+        return mapToDetailResponseDto(savedDetail);
+    }
+
+    /**
+     * Xóa dòng chi phí
+     */
+    public void deleteInvoiceDetail(Long invoiceId, Long detailId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
+
+        InvoiceDetail detail = invoiceDetailRepository.findById(detailId)
+                .orElseThrow(() -> new NotFoundException("Invoice detail not found with id: " + detailId));
+
+        // Kiểm tra detail thuộc về invoice
+        if (!detail.getInvoice().getInvoiceId().equals(invoiceId)) {
+            throw new CustomException("Invoice detail does not belong to this invoice",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // Kiểm tra invoice chưa được thanh toán
+        if (invoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Cannot delete details from paid invoice",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        invoiceDetailRepository.delete(detail);
+
+        // Cập nhật tổng tiền invoice
+        updateInvoiceTotalAmount(invoice);
+    }
+
+    // Helper methods
+
+    private void updateInvoiceTotalAmount(Invoice invoice) {
+        Double detailsTotal = invoice.getLines().stream()
+                .mapToDouble(detail -> detail.getLineTotal() != null ? detail.getLineTotal() : 0.0)
+                .sum();
+
+        invoice.setTotalAmount(detailsTotal);
+        invoiceRepository.save(invoice);
+    }
+
+    private InvoiceResponseDto mapToResponseDto(Invoice invoice) {
+        return InvoiceResponseDto.builder()
+                .invoiceId(invoice.getInvoiceId())
+                .bookingId(invoice.getBooking().getBookingId())
+                .type(invoice.getType())
+                .depositAmount(invoice.getDepositAmount())
+                .totalAmount(invoice.getTotalAmount())
+                .status(invoice.getStatus())
+                .paymentMethod(invoice.getPaymentMethod())
+                .notes(invoice.getNotes())
+                .createdAt(invoice.getCreatedAt())
+                .completedAt(invoice.getCompletedAt())
+                .details(invoice.getLines().stream()
+                        .map(this::mapToDetailResponseDto)
+                        .collect(Collectors.toList()))
+                .build();
+    }
+
+    private InvoiceDetailResponseDto mapToDetailResponseDto(InvoiceDetail detail) {
+        return InvoiceDetailResponseDto.builder()
+                .invoiceDetailId(detail.getInvoiceDetailId())
+                .type(detail.getType())
+                .priceListId(detail.getPriceList() != null ? detail.getPriceList().getPriceId() : null)
+                .itemName(detail.getPriceList() != null ? detail.getPriceList().getItemName() : null)
+                .description(detail.getDescription())
+                .quantity(detail.getQuantity())
+                .unitPrice(detail.getUnitPrice())
+                .lineTotal(detail.getLineTotal())
+                .build();
     }
 }

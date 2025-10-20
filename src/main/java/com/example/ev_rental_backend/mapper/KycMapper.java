@@ -9,10 +9,10 @@ import org.mapstruct.MappingTarget;
 @Mapper(componentModel = "spring")
 public interface KycMapper {
 
-    @Mapping(target = "nationalId", source = "nationalId")
-    @Mapping(target = "driverLicense", source = "driverLicense")
+//    @Mapping(target = "nationalId", source = "nationalId")
+//    @Mapping(target = "driverLicense", source = "driverLicense")
     @Mapping(target = "address", source = "driverAddress")
     @Mapping(target = "dateOfBirth", source = "nationalDob")
-    @Mapping(target = "driverLicenseExpiry", source = "driverExpireDate")
+//    @Mapping(target = "driverLicenseExpiry", source = "driverExpireDate")
     void updateRenterFromKyc(KycVerificationDTO dto, @MappingTarget Renter renter);
 }

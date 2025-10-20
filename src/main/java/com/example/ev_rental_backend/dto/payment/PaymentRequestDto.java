@@ -8,14 +8,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
-public class PaymentInitRequestDTO {
-
-    @NotNull(message = "Invoice ID không được để trống")
-    @Positive(message = "Invoice ID phải là số dương")
-    private Long invoiceId;
-
-    private String paymentMethod;
+public class PaymentRequestDto {
+    @NotNull(message = "Amount is required")
+    @Positive(message = "Amount must be positive")
+    private Double amount;
 }

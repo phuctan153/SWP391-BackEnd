@@ -5,14 +5,18 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BookingPriceResponseDTO {
-    private Double totalAmount;
-    private Double totalHours;
-    private Double pricePerHour;
-    private Double pricePerDay;
+public class ReturnResponseDto {
+
+    private Long bookingId;
+    private LocalDateTime actualReturnTime;
+    private Double lateFee;
+    private Double damageFee;
+    private Double totalFee;
     private String message;
 }

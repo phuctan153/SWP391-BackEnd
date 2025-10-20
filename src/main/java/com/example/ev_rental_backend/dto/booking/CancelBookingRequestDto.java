@@ -5,14 +5,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class BookingPriceRequestDTO {
-    private Long vehicleId;
-    private LocalDateTime startDateTime;
-    private LocalDateTime endDateTime;
+public class CancelBookingRequestDto {
+    private String reason;
 }

@@ -9,5 +9,4 @@ import java.util.List;
 public interface VehicleService {
     List<VehicleResponseDTO> getVehiclesByStationId(Long stationId);
 
-    VehicleResDTO createVehicle(VehicleRequestDTO requestDTO);
 }

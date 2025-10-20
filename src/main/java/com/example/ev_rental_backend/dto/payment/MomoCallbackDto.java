@@ -6,10 +6,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Builder
-@AllArgsConstructor
 @NoArgsConstructor
-public class MomoIPNResponse {
-    private int resultCode;
+@AllArgsConstructor
+@Builder
+public class MomoCallbackDto {
+
+    private Long transactionId;
+    private String orderId;
+    private Integer resultCode;
     private String message;
+    private Double amount;
+    private String signature;
 }

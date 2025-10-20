@@ -75,20 +75,20 @@ public class RenterServiceImpl implements RenterService{
             throw new RuntimeException("Tên trên CCCD và GPLX không khớp nhau.");
         }
 
-        // 🔹 3. Kiểm tra trùng CCCD / GPLX
-        renterRepository.findByNationalId(dto.getNationalId())
-                .ifPresent(r -> {
-                    if (!r.getRenterId().equals(dto.getRenterId())) {
-                        throw new RuntimeException("CCCD này đã được sử dụng bởi người khác.");
-                    }
-                });
-
-        renterRepository.findByDriverLicense(dto.getDriverLicense())
-                .ifPresent(r -> {
-                    if (!r.getRenterId().equals(dto.getRenterId())) {
-                        throw new RuntimeException("GPLX này đã được sử dụng bởi người khác.");
-                    }
-                });
+//        // 🔹 3. Kiểm tra trùng CCCD / GPLX
+//        renterRepository.findByNationalId(dto.getNationalId())
+//                .ifPresent(r -> {
+//                    if (!r.getRenterId().equals(dto.getRenterId())) {
+//                        throw new RuntimeException("CCCD này đã được sử dụng bởi người khác.");
+//                    }
+//                });
+//
+//        renterRepository.findByDriverLicense(dto.getDriverLicense())
+//                .ifPresent(r -> {
+//                    if (!r.getRenterId().equals(dto.getRenterId())) {
+//                        throw new RuntimeException("GPLX này đã được sử dụng bởi người khác.");
+//                    }
+//                });
 
         // 🔹 4. Kiểm tra hạn CCCD & GPLX
         LocalDate today = LocalDate.now();
@@ -114,12 +114,12 @@ public class RenterServiceImpl implements RenterService{
         Renter renter = renterRepository.findById(renterId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy renter với ID: " + renterId));
 
-        boolean hasCCCD = renter.getNationalId() != null && !renter.getNationalId().isEmpty();
-        boolean hasGPLX = renter.getDriverLicense() != null && !renter.getDriverLicense().isEmpty();
+//        boolean hasCCCD = renter.getNationalId() != null && !renter.getNationalId().isEmpty();
+//        boolean hasGPLX = renter.getDriverLicense() != null && !renter.getDriverLicense().isEmpty();
 
-        if (!hasCCCD || !hasGPLX) {
-            return "NEED_UPLOAD"; // ❗️Cần upload CCCD + GPLX
-        }
+//        if (!hasCCCD || !hasGPLX) {
+//            return "NEED_UPLOAD"; // ❗️Cần upload CCCD + GPLX
+//        }
 
         if (renter.getStatus() == Renter.Status.PENDING_VERIFICATION) {
             return "WAITING_APPROVAL"; // ⏳ Đã upload, chờ admin duyệt

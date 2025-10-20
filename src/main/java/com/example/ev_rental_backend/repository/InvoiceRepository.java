@@ -11,30 +11,15 @@ import java.util.Optional;
 
 @Repository
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
-    /**
-     * Tìm invoice theo booking
-     */
     List<Invoice> findByBooking_BookingId(Long bookingId);
 
-    /**
-     * Tìm invoice theo booking và type
-     */
-    Optional<Invoice> findByBooking_BookingIdAndType(Long bookingId, Invoice.Type type);
+    @Query("SELECT i FROM Invoice i WHERE i.booking.renter.renterId = :renterId")
+    List<Invoice> findByRenterId(@Param("renterId") Long renterId);
 
-    /**
-     * Tìm invoice kèm booking, line items, transactions
-     */
-    @Query("SELECT DISTINCT i FROM Invoice i " +
-            "LEFT JOIN FETCH i.booking b " +
-            "LEFT JOIN FETCH b.vehicle v " +
-            "LEFT JOIN FETCH b.renter r " +
-            "LEFT JOIN FETCH i.lines " +
-            "LEFT JOIN FETCH i.transactions " +
-            "WHERE i.invoiceId = :invoiceId")
-    Optional<Invoice> findByIdWithDetails(@Param("invoiceId") Long invoiceId);
+    @Query("SELECT i FROM Invoice i WHERE i.status = :status")
+    List<Invoice> findByStatus(@Param("status") Invoice.Status status);
 
-    /**
-     * Kiểm tra booking đã có invoice Final chưa
-     */
-    boolean existsByBooking_BookingIdAndType(Long bookingId, Invoice.Type type);
+    @Query("SELECT i FROM Invoice i WHERE i.booking.bookingId = :bookingId AND i.type = :type")
+    Optional<Invoice> findByBookingIdAndType(@Param("bookingId") Long bookingId,
+                                             @Param("type") Invoice.Type type);
 }

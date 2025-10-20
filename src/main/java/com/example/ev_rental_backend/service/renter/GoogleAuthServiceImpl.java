@@ -40,8 +40,8 @@ public class GoogleAuthServiceImpl implements GoogleAuthService{
 
         // 🔹 4. Xác định trạng thái KYC
         String kycStatus;
-        boolean hasCCCD = renter.getNationalId() != null;
-        boolean hasGPLX = renter.getDriverLicense() != null;
+        boolean hasCCCD = renter.getGoogleId() != null;
+        boolean hasGPLX = renter.getRenterId() != null;
 
         if (!hasCCCD || !hasGPLX) {
             kycStatus = "NEED_UPLOAD";

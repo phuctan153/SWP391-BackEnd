@@ -54,7 +54,7 @@ public class KycVerificationDTO {
     @NotBlank(message = "Hạng GPLX không được để trống (VD: B1, B2, C...)")
     @Pattern(regexp = "^[A-F][1-3]?$", message = "Hạng GPLX không hợp lệ (VD: B1, B2, C...)")
     private String driverClass;
-    
+
     @PastOrPresent(message = "Ngày cấp GPLX không được nằm trong tương lai")
     private LocalDate driverIssueDate;
 

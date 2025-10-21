@@ -300,6 +300,99 @@ public class ContractServiceImpl implements ContractService{
         contractRepository.save(contract);
     }
 
+    @Override
+    @Transactional
+    public void sendOtpToRenter(Long bookingId) {
+        Contract contract = contractRepository.findByBooking_BookingId(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng của booking #" + bookingId));
+
+        if (contract.getStatus() != Contract.Status.ADMIN_SIGNED) {
+            throw new RuntimeException("Hợp đồng chưa được quản trị viên ký duyệt.");
+        }
+
+        Renter renter = contract.getBooking().getRenter();
+
+        // 🔢 Tạo mã OTP ngẫu nhiên
+        String otpCode = String.format("%06d", new Random().nextInt(999999));
+
+        // 💾 Lưu OTP
+        OtpVerification otp = OtpVerification.builder()
+                .contract(contract)
+                .otpCode(otpCode)
+                .createdAt(LocalDateTime.now())
+                .expiredAt(LocalDateTime.now().plusMinutes(5))
+                .status(OtpVerification.Status.PENDING)
+                .attemptCount(0)
+                .build();
+        otpVerificationRepository.save(otp);
+
+        // ✉️ Gửi email OTP
+        sendEmail(renter.getEmail(),
+                "🔐 Mã OTP ký hợp đồng",
+                """
+                Xin chào %s,
+
+                Mã OTP để ký hợp đồng #%d của bạn là: %s
+                Mã này có hiệu lực trong 5 phút.
+
+                Vui lòng đọc lại mã này cho nhân viên tại trạm để hoàn tất ký kết hợp đồng.
+
+                Trân trọng,
+                EV Rental System
+                """.formatted(renter.getFullName(), contract.getContractId(), otpCode));
+    }
+
+    @Override
+    @Transactional
+    public void verifyRenterSignature(Long bookingId, String otpCode) {
+        Contract contract = contractRepository.findByBooking_BookingId(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng của booking #" + bookingId));
+
+        if (contract.getStatus() != Contract.Status.ADMIN_SIGNED) {
+            throw new RuntimeException("Hợp đồng chưa được quản trị viên ký duyệt.");
+        }
+
+        // 🔍 Lấy OTP mới nhất
+        Optional<OtpVerification> otpOpt = otpVerificationRepository.findTopByContractOrderByCreatedAtDesc(contract);
+        OtpVerification otp = otpOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
+
+        if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
+            otp.setStatus(OtpVerification.Status.FAILED);
+            otpVerificationRepository.save(otp);
+            throw new RuntimeException("Mã OTP đã hết hạn.");
+        }
+
+        if (!otp.getOtpCode().equals(otpCode)) {
+            otp.setAttemptCount(otp.getAttemptCount() + 1);
+            otpVerificationRepository.save(otp);
+            throw new RuntimeException("Mã OTP không đúng.");
+        }
+
+        // ✅ Thành công
+        otp.setVerifiedAt(LocalDateTime.now());
+        otp.setStatus(OtpVerification.Status.VERIFIED);
+        otpVerificationRepository.save(otp);
+
+        contract.setStatus(Contract.Status.FULLY_SIGNED);
+        contract.setRenterSignedAt(LocalDateTime.now());
+        contractRepository.save(contract);
+
+        Renter renter = contract.getBooking().getRenter();
+
+        // 📧 Gửi email xác nhận ký thành công
+        sendEmail(renter.getEmail(),
+                "✅ Hợp đồng đã được ký thành công",
+                """
+                Xin chào %s,
+
+                Bạn đã hoàn tất ký hợp đồng #%d thành công.
+                Xe của bạn hiện đã sẵn sàng để nhận tại trạm.
+
+                Trân trọng,
+                EV Rental System
+                """.formatted(renter.getFullName(), contract.getContractId()));
+    }
+
     // 📧 Gửi email helper
     private void sendEmail(String to, String subject, String text) {
         try {

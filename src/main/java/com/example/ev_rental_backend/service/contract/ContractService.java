@@ -11,13 +11,17 @@ public interface ContractService {
 
     public ContractResponseDTO createContract(ContractRequestDTO dto);
 
-    BookingContractInfoDTO getBookingInfoForContract(Long bookingId);
+    public BookingContractInfoDTO getBookingInfoForContract(Long bookingId);
 
-    void sendContractToAdmin(Long contractId);
+    public void sendContractToAdmin(Long contractId);
 
     public List<BookingContractInfoDTO> getContractsByStatus(String status);
 
     public void sendOtpForAdminSignature(Long contractId, Long adminId);
 
     public void verifyAdminSignature(AdminContractSignDTO dto);
+
+    public void sendOtpToRenter(Long bookingId);
+
+    public void verifyRenterSignature(Long bookingId, String otpCode);
 }

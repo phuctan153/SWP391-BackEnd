@@ -208,6 +208,44 @@ public class ContractController {
         }
     }
 
+    @PostMapping("/renter/contracts/send-otp")
+    public ResponseEntity<ApiResponse<?>> sendOtp(@RequestParam Long bookingId) {
+        try {
+            contractService.sendOtpToRenter(bookingId);
+            return ResponseEntity.ok(ApiResponse.<String>builder()
+                    .status("success")
+                    .code(200)
+                    .data("Mã OTP đã được gửi đến email của bạn.")
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(ApiResponse.<String>builder()
+                    .status("error")
+                    .code(500)
+                    .data("Lỗi gửi OTP: " + e.getMessage())
+                    .build());
+        }
+    }
+
+    @PostMapping("/staff/contracts/verify-sign")
+    public ResponseEntity<ApiResponse<?>> verifySign(
+            @RequestParam Long bookingId,
+            @RequestParam String otpCode) {
+        try {
+            contractService.verifyRenterSignature(bookingId, otpCode);
+            return ResponseEntity.ok(ApiResponse.<String>builder()
+                    .status("success")
+                    .code(200)
+                    .data("Hợp đồng đã được ký thành công.")
+                    .build());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
+                    .status("error")
+                    .code(400)
+                    .data(e.getMessage())
+                    .build());
+        }
+    }
+
 
 
 

@@ -2,7 +2,9 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.station_vehicle.StationResponseDTO;
+import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.service.station.StationService;
+import com.example.ev_rental_backend.service.vehicle.VehicleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import java.util.List;
 public class StationController {
 
     private final StationService stationService;
+    private final VehicleService vehicleService;
 
     /**
      * Lấy danh sách trạm có xe khả dụng, sắp xếp theo khoảng cách và số xe.
@@ -33,6 +36,25 @@ public class StationController {
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(stations)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 📦 Lấy tất cả xe thuộc 1 trạm
+     * Ví dụ: GET /api/stations/1/vehicles
+     */
+    @GetMapping("/{stationId}/vehicles")
+    public ResponseEntity<ApiResponse<List<VehicleResponseDTO>>> getVehiclesByStationId(
+            @PathVariable Long stationId
+    ) {
+        List<VehicleResponseDTO> vehicles = vehicleService.getVehiclesByStationId(stationId);
+
+        ApiResponse<List<VehicleResponseDTO>> response = ApiResponse.<List<VehicleResponseDTO>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(vehicles)
                 .build();
 
         return ResponseEntity.ok(response);

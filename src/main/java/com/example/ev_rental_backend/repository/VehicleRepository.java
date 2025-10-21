@@ -34,4 +34,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     """)
     Vehicle findWithBookingsByVehicleId(@Param("vehicleId") Long vehicleId);
 
+    boolean findByPlateNumber(String plateNumber);
+
 }

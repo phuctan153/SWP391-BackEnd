@@ -89,6 +89,7 @@ public class StationServiceImpl implements StationService {
                             .map(v -> VehicleResponseDTO.builder()
                                     .vehicleId(v.getVehicleId())
                                     .plateNumber(v.getPlateNumber())
+                                    .modelName(v.getModel().getModelName())
                                     .batteryLevel(v.getBatteryLevel())
                                     .status(v.getStatus().toString())
                                     .mileage(v.getMileage())

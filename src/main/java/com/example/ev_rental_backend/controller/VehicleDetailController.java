@@ -9,14 +9,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/vehicle")
+@RequestMapping("/api/vehicle")
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RequiredArgsConstructor
 public class VehicleDetailController {
 
     private final VehicleService vehicleDetailService;
 
-    @GetMapping("/{vehicleId}/detail")
+    @GetMapping("/detail/{vehicleId}")
     public ResponseEntity<ApiResponse<?>> getVehicleDetail(@PathVariable Long vehicleId) {
         try {
             VehicleDetailResponseDTO vehicleDetail = vehicleDetailService.getVehicleDetail(vehicleId);

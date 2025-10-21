@@ -141,15 +141,19 @@ public class RenterServiceImpl implements RenterService{
     @Override
     public Renter verifyKyc(KycVerificationDTO dto) {
 
-        // 🔹 0. Kiểm tra OTP đã được xác thực hay chưa
-        boolean hasVerifiedOtp = otpVerificationEmailRepository.existsVerifiedOtpForRenter(dto.getRenterId());
-        if (!hasVerifiedOtp) {
-            throw new RuntimeException("Renter chưa xác thực OTP. Vui lòng kiểm tra email và xác nhận trước khi gửi KYC.");
+        Renter renter = renterRepository.findById(dto.getRenterId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy renter #" + dto.getRenterId()));
+
+        if (renter.getAuthProvider() == Renter.AuthProvider.LOCAL) {
+            boolean hasVerifiedOtp = otpVerificationEmailRepository.existsVerifiedOtpForRenter(dto.getRenterId());
+            if (!hasVerifiedOtp) {
+                throw new RuntimeException("Renter chưa xác thực OTP. Vui lòng kiểm tra email và xác nhận trước khi gửi KYC.");
+            }
+        } else {
+            // 🟢 Nếu là tài khoản Google → bỏ qua OTP
+            System.out.println("Renter đăng nhập bằng Google, bỏ qua bước xác thực OTP.");
         }
 
-        // 🔹 1. Lấy renter
-        Renter renter = renterRepository.findById(dto.getRenterId())
-                .orElseThrow(() -> new NoSuchElementException("Không tìm thấy renter với ID: " + dto.getRenterId()));
 
         // 🔹 2. So sánh tên
         if (!normalize(dto.getNationalName()).equalsIgnoreCase(normalize(dto.getDriverName()))) {

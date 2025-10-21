@@ -37,7 +37,6 @@ public class Contract {
     @Column(length = 20, nullable = false)
     private ContractType contractType;
 
-    // 📎 File PDF hoặc URL hợp đồng (VD: lưu trên Cloud)
     @Column(length = 255)
     private String contractFileUrl;
 

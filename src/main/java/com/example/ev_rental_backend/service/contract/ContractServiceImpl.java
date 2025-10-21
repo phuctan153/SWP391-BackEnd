@@ -1,19 +1,23 @@
 package com.example.ev_rental_backend.service.contract;
 
 import com.example.ev_rental_backend.dto.booking.BookingContractInfoDTO;
+import com.example.ev_rental_backend.dto.contract.AdminContractSignDTO;
 import com.example.ev_rental_backend.dto.contract.ContractRequestDTO;
 import com.example.ev_rental_backend.dto.contract.ContractResponseDTO;
 import com.example.ev_rental_backend.entity.*;
-import com.example.ev_rental_backend.repository.BookingRepository;
-import com.example.ev_rental_backend.repository.ContractRepository;
-import com.example.ev_rental_backend.repository.TermConditionRepository;
+import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.notification.NotificationService;
+import jakarta.mail.internet.MimeMessage;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +28,9 @@ public class ContractServiceImpl implements ContractService{
     private final TermConditionRepository termConditionRepository;
     private final NotificationService notificationService;
     private final PdfGeneratorService pdfGeneratorService;
+    private final AdminRepository adminRepository;
+    private final OtpVerificationRepository otpVerificationRepository;
+    private final JavaMailSender mailSender;
 
     @Transactional
     public ContractResponseDTO createContract(ContractRequestDTO dto) {
@@ -118,8 +125,9 @@ public class ContractServiceImpl implements ContractService{
             throw new RuntimeException("Hợp đồng chưa có file được render. Vui lòng tạo hợp đồng trước khi gửi.");
         }
 
-        // 🧭 Giả định hiện tại có 1 Admin toàn cục
-        Long adminId = 1L;
+        Admin admin = adminRepository.findFirstByStatus(Admin.Status.ACTIVE)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy quản trị viên đang hoạt động."));
+        Long adminId = admin.getGlobalAdminId();
 
         // 🔔 Gửi thông báo cho Admin
         notificationService.sendNotificationToAdmin(
@@ -134,8 +142,177 @@ public class ContractServiceImpl implements ContractService{
         contractRepository.save(contract);
     }
 
+    @Override
+    public List<BookingContractInfoDTO> getContractsByStatus(String status) {
+        try {
+            Contract.Status enumStatus = Contract.Status.valueOf(status.toUpperCase());
+            List<Contract> contracts = contractRepository.findByStatusOrderByContractDateDesc(enumStatus);
+
+            return contracts.stream()
+                    .map(contract -> {
+                        var booking = contract.getBooking();
+                        var renter = booking.getRenter();
+                        var staff = booking.getStaff();
+
+                        String renterFullName = renter.getIdentityDocuments().stream()
+                                .filter(doc -> doc.getStatus() == IdentityDocument.DocumentStatus.VERIFIED)
+                                .filter(doc -> doc.getType() == IdentityDocument.DocumentType.NATIONAL_ID)
+                                .map(IdentityDocument::getFullName)
+                                .findFirst()
+                                .orElseGet(() ->
+                                        renter.getIdentityDocuments().stream()
+                                                .filter(doc -> doc.getStatus() == IdentityDocument.DocumentStatus.VERIFIED)
+                                                .filter(doc -> doc.getType() == IdentityDocument.DocumentType.DRIVER_LICENSE)
+                                                .map(IdentityDocument::getFullName)
+                                                .findFirst()
+                                                .orElse(renter.getFullName())
+                                );
+
+                        return BookingContractInfoDTO.builder()
+                                .bookingId(booking.getBookingId())
+                                .vehicleName(booking.getVehicle().getVehicleName())
+                                .vehiclePlate(booking.getVehicle().getPlateNumber())
+                                .renterName(renterFullName)
+//                                .renterName(renter.getIdentityDocuments().)
+                                .renterEmail(renter.getEmail())
+                                .renterPhone(renter.getPhoneNumber())
+                                .staffName(staff != null ? staff.getFullName() : null)
+                                .startDateTime(booking.getStartDateTime())
+                                .endDateTime(booking.getEndDateTime())
+                                .pricePerHour(booking.getPriceSnapshotPerHour())
+                                .pricePerDay(booking.getPriceSnapshotPerDay())
+                                .bookingStatus(booking.getStatus().name())
+                                .build();
+                    })
+                    .toList();
+
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + status);
+        }
+    }
+
+    @Override
+    public void sendOtpForAdminSignature(Long contractId, Long adminId) {
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy admin #" + adminId));
+
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng #" + contractId));
+
+        // 🔢 Tạo mã OTP ngẫu nhiên 6 chữ số
+        String otpCode = String.format("%06d", new Random().nextInt(999999));
+
+        // 💾 Lưu OTP vào DB (gắn với Contract)
+        OtpVerification otp = OtpVerification.builder()
+                .contract(contract)
+                .otpCode(otpCode)
+                .createdAt(LocalDateTime.now())
+                .expiredAt(LocalDateTime.now().plusMinutes(5))
+                .status(OtpVerification.Status.PENDING)
+                .attemptCount(0)
+                .build();
+
+        otpVerificationRepository.save(otp);
+
+        // 📩 Gửi email OTP cho Admin
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(admin.getEmail());
+            helper.setSubject("🔐 Mã OTP xác thực ký hợp đồng EV Rental");
+            helper.setText("""
+                Xin chào %s,
+                
+                Mã OTP để ký hợp đồng #%d là: %s
+                Mã này có hiệu lực trong 5 phút.
+                
+                Trân trọng,
+                EV Rental System
+                """.formatted(admin.getFullName(), contractId, otpCode), false);
+
+            mailSender.send(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Không thể gửi email OTP: " + e.getMessage());
+        }
+    }
 
 
+    @Override
+    @Transactional
+    public void verifyAdminSignature(AdminContractSignDTO dto) {
+        Admin admin = adminRepository.findById(dto.getAdminId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy admin #" + dto.getAdminId()));
+
+        Contract contract = contractRepository.findById(dto.getContractId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng #" + dto.getContractId()));
+
+        // 🔐 Kiểm tra OTP
+        OtpVerification otp = otpVerificationRepository
+                .findTopByContractOrderByCreatedAtDesc(contract)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
+
+        if (!otp.getOtpCode().equals(dto.getOtpCode()))
+            throw new RuntimeException("Mã OTP không đúng.");
+        if (otp.getExpiredAt().isBefore(LocalDateTime.now()))
+            throw new RuntimeException("Mã OTP đã hết hạn.");
+
+        // ✅ Xử lý ký duyệt
+        Booking booking = contract.getBooking();
+        Renter renter = booking.getRenter();
+
+        if (dto.isApproved()) {
+            contract.setStatus(Contract.Status.ADMIN_SIGNED);
+            contract.setAdmin(admin);
+            contract.setAdminSignedAt(LocalDateTime.now());
+
+            sendEmail(renter.getEmail(),
+                    "✅ Xe của bạn đã sẵn sàng",
+                    """
+                    Xin chào %s,
+
+                    Hợp đồng #%d đã được quản trị viên ký duyệt thành công.
+                    Xe của bạn đã sẵn sàng để nhận tại trạm thuê.
+
+                    Trân trọng,
+                    EV Rental System
+                    """.formatted(renter.getFullName(), contract.getContractId()));
+
+        } else {
+            contract.setStatus(Contract.Status.CANCELLED);
+            booking.setStatus(Booking.Status.CANCELLED);
+            bookingRepository.save(booking);
+
+            sendEmail(renter.getEmail(),
+                    "❌ Booking của bạn không được phê duyệt",
+                    """
+                    Xin chào %s,
+
+                    Đơn đặt xe #%d của bạn đã không được kiểm duyệt.
+                    Tiền cọc sẽ được hoàn lại trong vòng 3 ngày làm việc.
+
+                    Nếu có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ.
+
+                    Trân trọng,
+                    EV Rental System
+                    """.formatted(renter.getFullName(), booking.getBookingId()));
+        }
+
+        contractRepository.save(contract);
+    }
+
+    // 📧 Gửi email helper
+    private void sendEmail(String to, String subject, String text) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(text, false);
+            mailSender.send(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi gửi email: " + e.getMessage());
+        }
+    }
 
     private ContractResponseDTO mapToResponse(Contract contract) {
         return ContractResponseDTO.builder()

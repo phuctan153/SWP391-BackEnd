@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.BookingContractInfoDTO;
+import com.example.ev_rental_backend.dto.contract.AdminContractSignDTO;
 import com.example.ev_rental_backend.dto.contract.ContractRequestDTO;
 import com.example.ev_rental_backend.dto.contract.ContractResponseDTO;
 import com.example.ev_rental_backend.entity.TermCondition;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/staff/contracts")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class ContractController {
 
@@ -25,7 +26,7 @@ public class ContractController {
     /**
      * 📄 API: Lấy mẫu điều khoản hợp đồng (cho Staff xem trước)
      */
-    @GetMapping("/template")
+    @GetMapping("/staff/contracts/template")
     public ResponseEntity<ApiResponse<List<TermCondition>>> getContractTemplate() {
         List<TermCondition> terms = termTemplateService.loadDefaultTerms();
         return ResponseEntity.ok(
@@ -38,7 +39,7 @@ public class ContractController {
     }
 
 
-    @GetMapping("/booking-info/{bookingId}")
+    @GetMapping("/staff/contracts/booking-info/{bookingId}")
     public ResponseEntity<ApiResponse<BookingContractInfoDTO>> getBookingInfoForContract(@PathVariable Long bookingId) {
         BookingContractInfoDTO info = contractService.getBookingInfoForContract(bookingId);
         return ResponseEntity.ok(
@@ -53,7 +54,7 @@ public class ContractController {
     /**
      * 📝 API: Staff tạo hợp đồng mới
      */
-    @PostMapping("/create")
+    @PostMapping("/staff/contracts/create")
     public ResponseEntity<ApiResponse<?>> createContract(@RequestBody ContractRequestDTO dto) {
         try {
             ContractResponseDTO contract = contractService.createContract(dto);
@@ -83,7 +84,7 @@ public class ContractController {
         }
     }
 
-    @PostMapping("/{contractId}/send-to-admin")
+    @PostMapping("/staff/contracts/{contractId}/send-to-admin")
     public ResponseEntity<ApiResponse<?>> sendContractToAdmin(@PathVariable Long contractId) {
         try {
             contractService.sendContractToAdmin(contractId);
@@ -112,6 +113,102 @@ public class ContractController {
             );
         }
     }
+
+    @GetMapping("/admin/contracts")
+    public ResponseEntity<ApiResponse<?>> getContractsByStatus(
+            @RequestParam(required = false, defaultValue = "PENDING_ADMIN_SIGNATURE") String status) {
+        try {
+            List<BookingContractInfoDTO> list = contractService.getContractsByStatus(status);
+            return ResponseEntity.ok(
+                    ApiResponse.<List<BookingContractInfoDTO>>builder()
+                            .status("success")
+                            .code(200)
+                            .data(list)
+                            .build()
+            );
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.<String>builder()
+                            .status("error")
+                            .code(400)
+                            .data(e.getMessage())
+                            .build()
+            );
+        }
+    }
+
+    @PostMapping("/admin/contracts/{contractId}/send-otp")
+    public ResponseEntity<ApiResponse<?>> sendOtp(
+            @PathVariable Long contractId,
+            @RequestParam Long adminId) {
+
+        try {
+            contractService.sendOtpForAdminSignature(contractId, adminId);
+
+            return ResponseEntity.ok(
+                    ApiResponse.<String>builder()
+                            .status("success")
+                            .code(200)
+                            .data("✅ Mã OTP đã được gửi đến email quản trị viên.")
+                            .build()
+            );
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.<String>builder()
+                            .status("error")
+                            .code(400)
+                            .data("Lỗi gửi OTP: " + e.getMessage())
+                            .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(
+                    ApiResponse.<String>builder()
+                            .status("error")
+                            .code(500)
+                            .data("Lỗi hệ thống: " + e.getMessage())
+                            .build()
+            );
+        }
+    }
+
+    @PostMapping("/admin/contracts/verify-sign")
+    public ResponseEntity<ApiResponse<?>> verifySign(@RequestBody AdminContractSignDTO dto) {
+        try {
+            contractService.verifyAdminSignature(dto);
+
+            String msg = dto.isApproved()
+                    ? "✅ Hợp đồng đã được ký và renter đã được thông báo."
+                    : "❌ Hợp đồng đã bị từ chối. Booking sẽ bị hủy và renter sẽ được hoàn tiền cọc.";
+
+            return ResponseEntity.ok(
+                    ApiResponse.<String>builder()
+                            .status("success")
+                            .code(200)
+                            .data(msg)
+                            .build()
+            );
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.<String>builder()
+                            .status("error")
+                            .code(400)
+                            .data(e.getMessage())
+                            .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(
+                    ApiResponse.<String>builder()
+                            .status("error")
+                            .code(500)
+                            .data("Lỗi hệ thống: " + e.getMessage())
+                            .build()
+            );
+        }
+    }
+
+
 
 
 }

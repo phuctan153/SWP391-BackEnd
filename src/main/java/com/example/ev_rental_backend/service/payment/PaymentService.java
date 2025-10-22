@@ -10,11 +10,6 @@ public interface PaymentService {
      * Thanh toán bằng ví (BR-30)
      */
     public PaymentResponseDto payByWallet(Long invoiceId, PaymentRequestDto requestDto);
-
-    /**
-     * Thanh toán qua MoMo (BR-30)
-     */
-    public MomoPaymentResponseDto payByMomo(Long invoiceId, PaymentRequestDto requestDto);
     /**
      * Thử lại giao dịch thất bại (BR-29)
      */
@@ -25,8 +20,7 @@ public interface PaymentService {
      */
     public TransactionResponseDto getTransactionById(Long transactionId);
 
-    /**
-     * Xử lý callback từ MoMo
-     */
-    public void handleMomoCallback(MomoCallbackDto callbackDto);
+    public MomoPaymentInfoDto createMomoPayment(Long invoiceId, PaymentRequestDto requestDto);
+
+    public MomoIPNResponse handleMomoIPN(MomoIPNRequest ipnRequest);
 }

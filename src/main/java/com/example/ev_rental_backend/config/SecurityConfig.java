@@ -48,7 +48,8 @@ public class SecurityConfig {
                                 "/api/vehicles/**",// tạm thời public để test xe (sẽ đổi lại sau)
                                 "/api/bookings/**", // tạm thời public để test xe (sẽ đổi lại sau)
                                 "/api/vehicle-models/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/payments/**" // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/payments/**", // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/invoices/**"
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/staff/**").hasAnyAuthority("STAFF", "ADMIN")

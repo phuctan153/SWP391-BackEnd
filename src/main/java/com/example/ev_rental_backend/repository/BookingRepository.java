@@ -6,9 +6,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import com.example.ev_rental_backend.entity.Booking.Status;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
@@ -18,10 +20,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      */
     List<Booking> findByRenter(Renter renter);
 
-    /**
-     * Tìm booking theo renter và trạng thái
-     */
-    List<Booking> findByRenterAndStatusIn(Renter renter, List<Booking.Status> statuses);
+    Optional<Booking> findByBookingId(Long bookingId);
+
+    // Kiểm tra xem renter có ít nhất 1 booking active không
+    boolean existsByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
 
     /**
      * Tìm booking theo vehicle ID
@@ -43,7 +45,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * BR-07: Kiểm tra xe có sẵn trong khoảng thời gian không
      */
     @Query("SELECT b FROM Booking b WHERE b.vehicle.vehicleId = :vehicleId " +
-            "AND b.status IN ('RESERVED', 'IN_USE') " +
+            "AND b.status IN ( com.example.ev_rental_backend.entity.Booking.Status.RESERVED, com.example.ev_rental_backend.entity.Booking.Status.IN_USE) " +
             "AND ((b.startDateTime <= :endDateTime AND b.endDateTime >= :startDateTime))")
     List<Booking> findOverlappingBookings(
             @Param("vehicleId") Long vehicleId,

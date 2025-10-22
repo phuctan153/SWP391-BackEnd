@@ -9,12 +9,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MomoPaymentResponseDto {
+public class MomoIPNResponse {
 
-    private Long transactionId;
-    private String payUrl;
-    private String qrCodeUrl;
+    private String partnerCode;
     private String orderId;
+    private String requestId;
     private Long amount;
+    private Long responseTime;
     private String message;
+    private Integer resultCode; // 0: Success
 }

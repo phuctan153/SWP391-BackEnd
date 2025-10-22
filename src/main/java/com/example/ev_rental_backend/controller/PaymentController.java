@@ -52,22 +52,6 @@ public class PaymentController {
     }
 
     /**
-     * POST /api/payments/invoice/{invoiceId}/momo - Thanh toán qua MoMo (BR-30)
-     */
-    @PostMapping("/invoice/{invoiceId}/momo")
-    @PreAuthorize("hasRole('RENTER')")
-    public ResponseEntity<ApiResponse<MomoPaymentResponseDto>> payByMomo(
-            @PathVariable Long invoiceId,
-            @Valid @RequestBody PaymentRequestDto requestDto) {
-        MomoPaymentResponseDto payment = paymentService.payByMomo(invoiceId, requestDto);
-        return ResponseEntity.ok(ApiResponse.<MomoPaymentResponseDto>builder()
-                .status("success")
-                .code(HttpStatus.OK.value())
-                .data(payment)
-                .build());
-    }
-
-    /**
      * POST /api/payments/invoice/{invoiceId}/retry - Thử lại giao dịch thất bại (BR-29)
      */
     @PostMapping("/invoice/{invoiceId}/retry")
@@ -98,17 +82,4 @@ public class PaymentController {
                 .build());
     }
 
-    /**
-     * POST /api/payments/momo/callback - Webhook nhận kết quả từ MoMo
-     */
-    @PostMapping("/momo/callback")
-    public ResponseEntity<ApiResponse<String>> momoCallback(
-            @RequestBody MomoCallbackDto callbackDto) {
-        paymentService.handleMomoCallback(callbackDto);
-        return ResponseEntity.ok(ApiResponse.<String>builder()
-                .status("success")
-                .code(HttpStatus.OK.value())
-                .data("Callback processed successfully")
-                .build());
-    }
 }

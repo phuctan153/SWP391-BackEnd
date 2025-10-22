@@ -1,22 +1,26 @@
 package com.example.ev_rental_backend.dto.payment;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-@Builder
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreateMomoRequest {
+@Builder
+public class MomoCreatePaymentRequest {
+
     private String partnerCode;
+    private String accessKey;
     private String requestId;
+    private Long amount;
     private String orderId;
     private String orderInfo;
-    private Long amount;
     private String redirectUrl;
     private String ipnUrl;
-    private String requestType;
     private String extraData;
+    private String requestType;
     private String signature;
     private String lang;
 }

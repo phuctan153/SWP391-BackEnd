@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -63,11 +64,13 @@ public class Invoice {
 
     // Chi tiết hóa đơn (nếu có)
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<InvoiceDetail> lines;
+    @Builder.Default
+    private List<InvoiceDetail> lines = new ArrayList<>();
 
     // Danh sách giao dịch liên quan đến hóa đơn
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PaymentTransaction> transactions;
+    @Builder.Default
+    private List<PaymentTransaction> transactions = new ArrayList<>();
 
     // Tự động set ngày tạo khi lưu vào DB
     @PrePersist
@@ -77,6 +80,10 @@ public class Invoice {
         if (this.paymentMethod == null) this.paymentMethod = PaymentMethod.CASH;
         if (this.type == null) this.type = Type.FINAL;
         if (this.depositAmount == null) this.depositAmount = 0.0;
+
+        // 🔥 FIX: Đảm bảo lists không null
+        if (this.lines == null) this.lines = new ArrayList<>();
+        if (this.transactions == null) this.transactions = new ArrayList<>();
     }
 }
 

@@ -247,6 +247,16 @@ public class BookingServiceImpl implements BookingService {
         return mapToResponseDto(savedBooking);
     }
 
+    public BookingResponseDto updateStatusToReserved(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found"));
+
+        booking.setStatus(Booking.Status.RESERVED);
+        Booking savedBooking = bookingRepository.save(booking);
+
+        return mapToResponseDto(savedBooking);
+    }
+
     // ==================== 5.4. Return Process ====================
 
     /**

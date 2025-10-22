@@ -18,4 +18,6 @@ public interface BookingService {
     public BookingResponseDto completeBooking(Long bookingId);
     public BookingRatingResponseDto rateBooking(Long bookingId, CreateBookingRatingDto requestDto);
     public BookingRatingResponseDto getBookingRating(Long bookingId);
+
+    public BookingResponseDto updateStatusToReserved(Long bookingId);
 }

@@ -142,6 +142,18 @@ public class BookingController {
                 .build());
     }
 
+    @PutMapping("/{bookingId}/status/reserved")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<BookingResponseDto>> updateStatusToReserved(
+            @PathVariable Long bookingId) {
+        BookingResponseDto booking = bookingService.updateStatusToReserved(bookingId);
+        return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(booking)
+                .build());
+    }
+
     // ==================== 5.4. Return Process ====================
 
     /**

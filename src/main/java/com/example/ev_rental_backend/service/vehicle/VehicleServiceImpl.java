@@ -5,6 +5,7 @@ import com.example.ev_rental_backend.dto.vehicle.VehicleDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleDetailResponseDTO;
 import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.entity.Vehicle;
+import com.example.ev_rental_backend.entity.VehicleImage;
 import com.example.ev_rental_backend.entity.VehicleModel;
 import com.example.ev_rental_backend.mapper.VehicleMapper;
 import com.example.ev_rental_backend.repository.StationRepository;
@@ -25,6 +26,7 @@ public class VehicleServiceImpl implements VehicleService {
     @Autowired
     private StationRepository stationRepository;
 
+    @Autowired
     private VehicleModelRepository vehicleModelRepository;
 
     @Autowired
@@ -52,6 +54,16 @@ public class VehicleServiceImpl implements VehicleService {
                 .map(b -> vehicleMapper.toVehicleFeedbackDto(b.getBookingRating()))
                 .toList());
 
+        if (vehicle.getImages() != null && !vehicle.getImages().isEmpty()) {
+            dto.setImageUrls(
+                    vehicle.getImages().stream()
+                            .map(VehicleImage::getImageUrl)
+                            .toList()
+            );
+        } else {
+            dto.setImageUrls(List.of()); // Trả list rỗng nếu không có ảnh
+        }
+
         return dto;
     }
 
@@ -64,7 +76,7 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Override
     public VehicleDTO createVehicle(VehicleDTO dto) {
-        if (vehicleRepository.findByPlateNumber(dto.getPlateNumber())) {
+        if (vehicleRepository.existsByPlateNumber(dto.getPlateNumber())) {
             throw new RuntimeException("Plate number already exists");
         }
 

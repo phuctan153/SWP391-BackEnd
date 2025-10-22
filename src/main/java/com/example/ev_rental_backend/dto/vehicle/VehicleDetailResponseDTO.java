@@ -27,4 +27,6 @@ public class VehicleDetailResponseDTO {
 
     private List<BookingHistoryDTO> bookingHistory;
     private List<VehicleFeedbackDTO> feedbacks;
+
+    private List<String> imageUrls;
 }

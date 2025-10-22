@@ -62,6 +62,7 @@ public class PaymentTransaction {
         INVOICE_WALLET,     // Thanh toán hóa đơn bằng ví
         INVOICE_MOMO,       // Thanh toán hóa đơn qua Momo
         WALLET_TOPUP,       // Nạp tiền vào ví
-        WALLET_WITHDRAW     // Rút tiền khỏi ví
+        WALLET_WITHDRAW,     // Rút tiền khỏi ví
+        WALLET_REFUND_DEPOSIT
     }
 }

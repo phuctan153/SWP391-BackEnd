@@ -11,7 +11,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
-
+    /**
+     * Tìm booking theo trạng thái
+     */
+    List<Booking> findByStatus(Booking.Status status);
     /**
      * Tìm booking theo renter
      */

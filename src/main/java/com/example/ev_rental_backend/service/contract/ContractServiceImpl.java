@@ -251,10 +251,22 @@ public class ContractServiceImpl implements ContractService{
                 .findTopByContractOrderByCreatedAtDesc(contract)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
 
-        if (!otp.getOtpCode().equals(dto.getOtpCode()))
+        if (!otp.getOtpCode().equals(dto.getOtpCode())) {
+            otp.setAttemptCount(otp.getAttemptCount() + 1);
+            otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP không đúng.");
-        if (otp.getExpiredAt().isBefore(LocalDateTime.now()))
+        }
+
+        if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
+            otp.setStatus(OtpVerification.Status.FAILED);
+            otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP đã hết hạn.");
+        }
+
+        // ✅ Đánh dấu OTP hợp lệ
+        otp.setStatus(OtpVerification.Status.VERIFIED);
+        otp.setVerifiedAt(LocalDateTime.now());
+        otpVerificationRepository.save(otp);
 
         // ✅ Xử lý ký duyệt
         Booking booking = contract.getBooking();
@@ -265,40 +277,54 @@ public class ContractServiceImpl implements ContractService{
             contract.setAdmin(admin);
             contract.setAdminSignedAt(LocalDateTime.now());
 
-            sendEmail(renter.getEmail(),
+            // 🧩 Regenerate file PDF mới (cập nhật trạng thái ADMIN_SIGNED)
+            String newFileUrl = pdfGeneratorService.generateContractFile(contract);
+            contract.setContractFileUrl(newFileUrl);
+
+            // 💾 Lưu sau khi có file
+            contractRepository.save(contract);
+
+            // 📧 Thông báo cho renter
+            sendEmail(
+                    renter.getEmail(),
                     "✅ Xe của bạn đã sẵn sàng",
                     """
                     Xin chào %s,
-
+    
                     Hợp đồng #%d đã được quản trị viên ký duyệt thành công.
                     Xe của bạn đã sẵn sàng để nhận tại trạm thuê.
-
+    
                     Trân trọng,
                     EV Rental System
-                    """.formatted(renter.getFullName(), contract.getContractId()));
+                    """.formatted(renter.getFullName(), contract.getContractId())
+            );
 
         } else {
+            // ❌ Trường hợp bị từ chối
             contract.setStatus(Contract.Status.CANCELLED);
             booking.setStatus(Booking.Status.CANCELLED);
             bookingRepository.save(booking);
 
-            sendEmail(renter.getEmail(),
+            contractRepository.save(contract);
+
+            sendEmail(
+                    renter.getEmail(),
                     "❌ Booking của bạn không được phê duyệt",
                     """
                     Xin chào %s,
-
+    
                     Đơn đặt xe #%d của bạn đã không được kiểm duyệt.
                     Tiền cọc sẽ được hoàn lại trong vòng 3 ngày làm việc.
-
+    
                     Nếu có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ.
-
+    
                     Trân trọng,
                     EV Rental System
-                    """.formatted(renter.getFullName(), booking.getBookingId()));
+                    """.formatted(renter.getFullName(), booking.getBookingId())
+            );
         }
-
-        contractRepository.save(contract);
     }
+
 
     @Override
     @Transactional
@@ -356,42 +382,53 @@ public class ContractServiceImpl implements ContractService{
         Optional<OtpVerification> otpOpt = otpVerificationRepository.findTopByContractOrderByCreatedAtDesc(contract);
         OtpVerification otp = otpOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
 
+        // ⏰ Kiểm tra hết hạn
         if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
             otp.setStatus(OtpVerification.Status.FAILED);
             otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP đã hết hạn.");
         }
 
+        // ❌ Sai mã OTP
         if (!otp.getOtpCode().equals(otpCode)) {
             otp.setAttemptCount(otp.getAttemptCount() + 1);
             otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP không đúng.");
         }
 
-        // ✅ Thành công
+        // ✅ OTP hợp lệ
         otp.setVerifiedAt(LocalDateTime.now());
         otp.setStatus(OtpVerification.Status.VERIFIED);
         otpVerificationRepository.save(otp);
 
+        // 📝 Cập nhật hợp đồng
         contract.setStatus(Contract.Status.FULLY_SIGNED);
         contract.setRenterSignedAt(LocalDateTime.now());
+
+        // 🧩 Regenerate lại PDF với trạng thái FULLY_SIGNED
+        String newFileUrl = pdfGeneratorService.generateContractFile(contract);
+        contract.setContractFileUrl(newFileUrl);
+
         contractRepository.save(contract);
 
         Renter renter = contract.getBooking().getRenter();
 
         // 📧 Gửi email xác nhận ký thành công
-        sendEmail(renter.getEmail(),
+        sendEmail(
+                renter.getEmail(),
                 "✅ Hợp đồng đã được ký thành công",
                 """
                 Xin chào %s,
-
+    
                 Bạn đã hoàn tất ký hợp đồng #%d thành công.
                 Xe của bạn hiện đã sẵn sàng để nhận tại trạm.
-
+    
                 Trân trọng,
                 EV Rental System
-                """.formatted(renter.getFullName(), contract.getContractId()));
+                """.formatted(renter.getFullName(), contract.getContractId())
+        );
     }
+
 
     // 📧 Gửi email helper
     private void sendEmail(String to, String subject, String text) {

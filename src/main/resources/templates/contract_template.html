@@ -74,19 +74,25 @@
 <h1>HỢP ĐỒNG THUÊ XE ĐIỆN</h1>
 
 <div class="info">
-    <p><b>Ngày lập hợp đồng:</b> ${contractDate}</p>
-    <p><b>Người thuê:</b> ${renterName}</p>
-    <p><b>Email:</b> ${renterEmail}</p>
-    <p><b>Số điện thoại:</b> ${renterPhone}</p>
-    <p><b>Nhân viên phụ trách:</b> ${staffName}</p>
-    <p><b>Tên xe:</b> ${vehicleName}</p>
-    <p><b>Biển số xe:</b> ${vehiclePlate}</p>
-    <p><b>Thời gian thuê:</b> ${startDate} → ${endDate}</p>
-    <p><b>Giá thuê:</b> ${pricePerHour} VNĐ/giờ</p>
+    <p><b>Ngày lập hợp đồng:</b> ${contractDate?html}</p>
+    <p><b>Người thuê:</b> ${renterName?html}</p>
+    <p><b>Email:</b> ${renterEmail?html}</p>
+    <p><b>Số điện thoại:</b> ${renterPhone?html}</p>
+    <p><b>Nhân viên phụ trách:</b> ${staffName?html}</p>
+    <p><b>Tên xe:</b> ${vehicleName?html}</p>
+    <p><b>Biển số xe:</b> ${vehiclePlate?html}</p>
+    <p><b>Thời gian thuê:</b> ${startDate?html} → ${endDate?html}</p>
+    <p><b>Giá thuê:</b> ${pricePerDay?html} VNĐ/ngày</p>
+    <p><b>Phụ thu nếu trả trễ:</b>
+        Nếu trả trễ &lt; 4 tiếng kể từ thời điểm hết hạn, tính phí theo giờ là
+        <b>${pricePerHour?html} VNĐ/giờ</b>.
+        Nếu trễ từ 4 tiếng trở lên, tính thêm một ngày thuê với mức giá
+        <b>${pricePerDay?html} VNĐ/ngày</b>.
+    </p>
 
     <#-- ✅ Hiển thị admin nếu có -->
     <#if adminName?has_content>
-    <p><b>Quản trị viên phê duyệt:</b> ${adminName}</p>
+    <p><b>Quản trị viên phê duyệt:</b> ${adminName?html}</p>
 </#if>
 </div>
 
@@ -97,8 +103,8 @@
 <div class="terms">
     <#list terms as term>
     <div class="term">
-        <div class="term-title">${term.termTitle}</div>
-        <div class="term-content">${term.termContent}</div>
+        <div class="term-title">${term.termTitle?html}</div>
+        <div class="term-content">${term.termContent?html}</div>
     </div>
 </#list>
 </div>

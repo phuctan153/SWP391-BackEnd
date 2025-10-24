@@ -13,4 +13,14 @@ public interface StationRepository extends JpaRepository<Station, Long> {
     // 🔹 Lấy tất cả trạm (kể cả trạm không có xe khả dụng)
     @Query("SELECT DISTINCT s FROM Station s LEFT JOIN FETCH s.vehicles v")
     List<Station> findAllStationsWithVehicles();
+
+    @Query("""
+    SELECT s.stationId, s.name, COUNT(b)
+    FROM Station s
+    JOIN s.vehicles v
+    JOIN v.bookings b
+    WHERE b.status IN ('RESERVED', 'IN_USE')
+    GROUP BY s.stationId, s.name
+    """)
+    List<Object[]> countActiveBookingsByStation();
 }

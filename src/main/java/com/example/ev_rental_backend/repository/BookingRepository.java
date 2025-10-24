@@ -26,4 +26,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         WHERE b.bookingId = :bookingId
     """)
     Optional<Booking> findBookingWithDetails(Long bookingId);
+
+    List<Booking> findByStaff_StaffIdAndStatus(Long staffId, Booking.Status status);
 }

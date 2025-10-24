@@ -337,6 +337,32 @@ public class RenterServiceImpl implements RenterService{
         return dto;
     }
 
+    @Override
+    public List<RenterResponseDTO> getAllRenters() {
+        return renterRepository.findAll()
+                .stream()
+                .map(renterMapper::toResponseDto)
+                .toList();
+    }
+
+
+    @Override
+    public List<RenterResponseDTO> getRentersByStatus(String status) {
+        try {
+            Renter.Status enumStatus = Renter.Status.valueOf(status.toUpperCase());
+
+            // 🔹 Gọi repository bằng Enum
+            return renterRepository.findByStatus(enumStatus)
+                    .stream()
+                    .map(renterMapper::toResponseDto)
+                    .toList();
+
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + status
+                    + ". Hãy dùng một trong các giá trị: PENDING_VERIFICATION, VERIFIED, DELETED");
+        }
+    }
+
 
     @Override
     public List<RenterResponseDTO> getPendingVerificationRenters() {

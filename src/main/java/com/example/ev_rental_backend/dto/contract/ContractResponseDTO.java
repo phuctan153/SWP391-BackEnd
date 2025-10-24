@@ -5,19 +5,30 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class ContractResponseDTO {
+
     private Long contractId;
     private Long bookingId;
-    private LocalDate contractDate;
     private String contractType;
-    private String termsConditions;
-    private String renterSignature;
-    private String staffSignature;
-}
+    private String contractFileUrl;
+    private String status;
+    private LocalDateTime contractDate;
+    private List<TermConditionDTO> terms;
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TermConditionDTO {
+        private Integer termNumber;
+        private String termTitle;
+        private String termContent;
+    }
+}

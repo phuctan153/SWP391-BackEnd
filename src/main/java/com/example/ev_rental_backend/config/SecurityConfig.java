@@ -39,6 +39,7 @@ public class SecurityConfig {
                                 "/api/auth/**",      // đăng ký / login
                                 "/api/stations/**",  // public cho bản đồ
                                 "/api/momo/**",
+                                "/api/vehicle/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

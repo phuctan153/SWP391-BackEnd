@@ -30,6 +30,7 @@ public class GoogleAuthController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(
                     ApiResponse.<LoginResponseDTO>builder()
                             .status("error")

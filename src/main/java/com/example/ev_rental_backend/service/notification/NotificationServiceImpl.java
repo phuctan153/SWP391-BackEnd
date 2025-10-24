@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -15,6 +17,31 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+
+    @Override
+    public List<Notification> getAllNotificationsForAdmin(Long adminId) {
+        return notificationRepository.findByRecipientTypeAndRecipientIdOrderByNotificationIdDesc(
+                Notification.RecipientType.ADMIN, adminId);
+    }
+
+    public void markAsRead(Long notificationId) {
+        notificationRepository.findById(notificationId).ifPresent(notification -> {
+            notification.setIsRead(true);
+            notificationRepository.save(notification);
+        });
+    }
+
+    @Override
+    public Notification sendNotificationToAdmin(Long adminId, String title, String message) {
+        Notification notification = Notification.builder()
+                .recipientType(Notification.RecipientType.ADMIN)
+                .recipientId(adminId)
+                .title(title)
+                .message(message)
+                .isRead(false)
+                .build();
+        return notificationRepository.save(notification);
+    }
 
     /**
      * Gửi thông báo nhắc nhở nhận xe (BR-20)

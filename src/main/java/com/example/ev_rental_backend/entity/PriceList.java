@@ -8,7 +8,10 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "price_list")
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class PriceList {
 
     @Id
@@ -42,4 +45,3 @@ public class PriceList {
         OTHER
     }
 }
-

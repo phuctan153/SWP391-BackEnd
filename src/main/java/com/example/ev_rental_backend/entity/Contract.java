@@ -1,11 +1,7 @@
 package com.example.ev_rental_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
@@ -25,6 +21,9 @@ public class Contract {
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
+    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<TermCondition> terms = new java.util.ArrayList<>();
+
     // 🔗 FK → Admin (n-1)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "admin_id")
@@ -38,7 +37,7 @@ public class Contract {
     @Column(length = 20, nullable = false)
     private ContractType contractType;
 
-    // 📎 File PDF hoặc URL hợp đồng (VD: lưu trên Cloud)
+    // 📎 File hợp đồng PDF hoặc URL cloud
     @Column(length = 255)
     private String contractFileUrl;
 

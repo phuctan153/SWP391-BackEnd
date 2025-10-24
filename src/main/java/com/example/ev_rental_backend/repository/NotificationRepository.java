@@ -39,4 +39,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("recipientType") Notification.RecipientType recipientType,
             @Param("recipientId") Long recipientId
     );
+    List<Notification> findByRecipientTypeAndRecipientIdOrderByNotificationIdDesc(
+            Notification.RecipientType recipientType, Long recipientId);
 }

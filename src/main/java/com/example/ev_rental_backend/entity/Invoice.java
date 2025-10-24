@@ -1,11 +1,7 @@
 package com.example.ev_rental_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +63,7 @@ public class Invoice {
     @Builder.Default
     private List<InvoiceDetail> lines = new ArrayList<>();
 
+    // Tự động set ngày tạo khi lưu vào DB
     // Danh sách giao dịch liên quan đến hóa đơn
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -80,7 +77,6 @@ public class Invoice {
         if (this.paymentMethod == null) this.paymentMethod = PaymentMethod.CASH;
         if (this.type == null) this.type = Type.FINAL;
         if (this.depositAmount == null) this.depositAmount = 0.0;
-
         // 🔥 FIX: Đảm bảo lists không null
         if (this.lines == null) this.lines = new ArrayList<>();
         if (this.transactions == null) this.transactions = new ArrayList<>();

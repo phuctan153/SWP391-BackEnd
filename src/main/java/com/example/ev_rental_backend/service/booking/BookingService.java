@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.service.booking;
 
 import com.example.ev_rental_backend.dto.booking.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.example.ev_rental_backend.entity.Booking;
 
 import java.util.List;
 
@@ -20,4 +21,5 @@ public interface BookingService {
     public BookingRatingResponseDto getBookingRating(Long bookingId);
 
     public BookingResponseDto updateStatusToReserved(Long bookingId);
+    public List<Booking> getBookingsWithDamages();
 }

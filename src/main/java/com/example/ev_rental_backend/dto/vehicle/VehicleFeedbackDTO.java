@@ -1,4 +1,4 @@
-package com.example.ev_rental_backend.dto.trip_rating;
+package com.example.ev_rental_backend.dto.vehicle;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,12 +11,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TripRatingResponseDTO {
+public class VehicleFeedbackDTO {
     private Long ratingId;
-    private Long bookingId;
-    private int renterRating;
-    private int staffRating;
+    private String renterName;
+    private int vehicleRating;
     private String comment;
     private LocalDateTime createdAt;
 }
-

@@ -5,14 +5,11 @@ import com.example.ev_rental_backend.entity.Renter;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-import com.example.ev_rental_backend.entity.Booking.Status;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     /**
@@ -34,12 +31,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * Tìm booking theo staff ID
      */
     List<Booking> findByStaff_StaffId(Long staffId);
+    @Query("""
+        SELECT DISTINCT b
+        FROM Booking b
+        JOIN b.images img
+        WHERE img.imageType = 'DAMAGE'
+    """)
+    List<Booking> findAllWithDamageReports();
 
-    /**
-     * Tìm booking theo trạng thái
-     */
-    List<Booking> findByStatus(Booking.Status status);
 
+    @Query("""
+        SELECT b FROM Booking b
+        LEFT JOIN FETCH b.renter
+        LEFT JOIN FETCH b.vehicle
+        LEFT JOIN FETCH b.images
+        WHERE b.bookingId = :bookingId
+    """)
+    Optional<Booking> findBookingWithDetails(Long bookingId);
     /**
      * Tìm các booking có thời gian trùng lặp với xe cụ thể
      * BR-07: Kiểm tra xe có sẵn trong khoảng thời gian không

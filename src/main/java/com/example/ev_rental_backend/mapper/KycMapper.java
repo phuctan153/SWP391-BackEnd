@@ -1,6 +1,7 @@
 package com.example.ev_rental_backend.mapper;
 
 import com.example.ev_rental_backend.dto.renter.KycVerificationDTO;
+import com.example.ev_rental_backend.entity.IdentityDocument;
 import com.example.ev_rental_backend.entity.Renter;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -11,6 +12,7 @@ public interface KycMapper {
 
 //    @Mapping(target = "nationalId", source = "nationalId")
 //    @Mapping(target = "driverLicense", source = "driverLicense")
+    // Cập nhật thông tin cá nhân trong Renter
     @Mapping(target = "address", source = "driverAddress")
     @Mapping(target = "dateOfBirth", source = "nationalDob")
 //    @Mapping(target = "driverLicenseExpiry", source = "driverExpireDate")

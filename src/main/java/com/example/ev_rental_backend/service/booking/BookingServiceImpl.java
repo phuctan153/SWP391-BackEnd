@@ -7,6 +7,8 @@ import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
 import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.notification.NotificationServiceImpl;
+import com.example.ev_rental_backend.entity.Booking;
+import com.example.ev_rental_backend.repository.BookingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -39,6 +41,10 @@ public class BookingServiceImpl implements BookingService {
     private final NotificationServiceImpl notificationService;
 
     // ==================== 5.1. Booking Creation ====================
+    @Override
+    public List<Booking> getBookingsWithDamages() {
+        return bookingRepository.findAllWithDamageReports();
+    }
 
     /**
      * Tạo booking mới (BR-05, BR-06, BR-07, BR-16, BR-22)

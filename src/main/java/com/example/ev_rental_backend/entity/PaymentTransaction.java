@@ -1,11 +1,7 @@
 package com.example.ev_rental_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -16,7 +12,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class PaymentTransaction {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long transactionId;
@@ -66,7 +61,7 @@ public class PaymentTransaction {
         INVOICE_WALLET,     // Thanh toán hóa đơn bằng ví
         INVOICE_MOMO,       // Thanh toán hóa đơn qua Momo
         WALLET_TOPUP,       // Nạp tiền vào ví
-        WALLET_WITHDRAW     // Rút tiền khỏi ví
+        WALLET_WITHDRAW,     // Rút tiền khỏi ví
+        WALLET_REFUND_DEPOSIT
     }
 }
-

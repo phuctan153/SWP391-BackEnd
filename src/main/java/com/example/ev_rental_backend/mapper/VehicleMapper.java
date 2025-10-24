@@ -1,14 +1,17 @@
 package com.example.ev_rental_backend.mapper;
 
+import com.example.ev_rental_backend.dto.booking.BookingHistoryDTO;
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
 import com.example.ev_rental_backend.entity.Station;
+import com.example.ev_rental_backend.dto.vehicle.VehicleDetailResponseDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleFeedbackDTO;
+import com.example.ev_rental_backend.entity.Booking;
+import com.example.ev_rental_backend.entity.BookingRating;
 import com.example.ev_rental_backend.entity.Vehicle;
-import com.example.ev_rental_backend.entity.VehicleModel;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.Named;
 
 import java.util.List;
 
@@ -20,41 +23,22 @@ public interface VehicleMapper {
 
     List<VehicleResponseDTO> toResponseDtoList(List<Vehicle> vehicles);
 
-    @Mapping(target = "vehicleId", ignore = true)
-    @Mapping(target = "station", ignore = true)
-    @Mapping(target = "model", ignore = true)
-    @Mapping(target = "bookings", ignore = true)
-    @Mapping(target = "status", source = "status", qualifiedByName = "stringToStatus")
-    Vehicle toEntity(VehicleRequestDTO dto);
+    @Mapping(source = "station.name", target = "stationName")
+    VehicleResDTO toResponseDTO(Vehicle vehicle);
 
-    @Mapping(target = "status", expression = "java(vehicle.getStatus() != null ? vehicle.getStatus().toString() : null)")
-    @Mapping(target = "station", source = "station")
-    @Mapping(target = "model", source = "model")
-    VehicleResDTO toDto(Vehicle vehicle);
+    @Mapping(target = "modelName", source = "model.modelName")
+    @Mapping(target = "stationName", source = "station.name")
+    VehicleDetailResponseDTO toVehicleDetailDto(Vehicle vehicle);
 
-    @Mapping(target = "carNumber", source = "car_number")
-    @Mapping(target = "status", expression = "java(station.getStatus() != null ? station.getStatus().toString() : null)")
-    VehicleResDTO.StationBasicDTO toStationBasicDto(Station station);
+    // 🎯 Lịch sử cho thuê
+    @Mapping(target = "renterName", source = "renter.fullName")
+    @Mapping(target = "renterEmail", source = "renter.email")
+    BookingHistoryDTO toBookingHistoryDto(Booking booking);
 
-    @Mapping(target = "modelId", source = "modelId")
-    @Mapping(target = "modelName", source = "modelName")
-    @Mapping(target = "manufacturer", source = "manufacturer")
-    @Mapping(target = "batteryCapacity", source = "batteryCapacity")
-    @Mapping(target = "seatingCapacity", source = "seatingCapacity")
-    VehicleResDTO.VehicleModelBasicDTO toVehicleModelBasicDto(VehicleModel model);
+    // 🎯 Feedback
+    @Mapping(target = "renterName", source = "booking.renter.fullName")
+    VehicleFeedbackDTO toVehicleFeedbackDto(BookingRating rating);
 
-    /**
-     * Custom mapping: String -> Vehicle.Status enum
-     */
-    @Named("stringToStatus")
-    default Vehicle.Status stringToStatus(String status) {
-        if (status == null || status.isBlank()) {
-            return Vehicle.Status.AVAILABLE;
-        }
-        try {
-            return Vehicle.Status.valueOf(status.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return Vehicle.Status.AVAILABLE;
-        }
-    }
+    List<BookingHistoryDTO> toBookingHistoryDtoList(List<Booking> bookings);
+    List<VehicleFeedbackDTO> toVehicleFeedbackDtoList(List<BookingRating> ratings);
 }

@@ -38,6 +38,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",      // đăng ký / login
                                 "/api/stations/**",  // public cho bản đồ
+                                "/api/momo/**",
+                                "/api/vehicle/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
@@ -46,7 +48,9 @@ public class SecurityConfig {
                                 "/error",
                                 "/api/vehicles/**",// tạm thời public để test xe (sẽ đổi lại sau)
                                 "/api/bookings/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/vehicle-models/**" // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/vehicle-models/**", // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/payments/**", // tạm thời public để test xe (sẽ đổi lại sau)
+                                "/api/invoices/**"
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/staff/**").hasAnyAuthority("STAFF", "ADMIN")

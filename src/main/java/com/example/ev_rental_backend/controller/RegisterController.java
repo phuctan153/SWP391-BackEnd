@@ -10,7 +10,9 @@ import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
 import com.example.ev_rental_backend.entity.Admin;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.entity.Staff;
+import com.example.ev_rental_backend.service.admin.AdminService;
 import com.example.ev_rental_backend.service.admin.AdminServiceImpl;
+import com.example.ev_rental_backend.service.renter.RenterService;
 import com.example.ev_rental_backend.service.renter.RenterServiceImpl;
 import com.example.ev_rental_backend.service.staff.StaffService;
 import com.example.ev_rental_backend.service.staff.StaffServiceImpl;
@@ -21,6 +23,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
@@ -28,80 +33,55 @@ import org.springframework.web.bind.annotation.*;
 public class RegisterController {
 
     @Autowired
-    RenterServiceImpl renterServiceImpl;
+    RenterService renterService;
 
     @Autowired
-    StaffServiceImpl staffServiceImpl;
+    StaffService staffService;
 
     @Autowired
-    AdminServiceImpl adminServiceImpl;
+    AdminService adminService;
 
 
     @Autowired
     JwtTokenUtil jwtTokenUtil;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<RenterResponseDTO>> registerUser(@Valid @RequestBody RenterRequestDTO renterRequestDTO) {
-//        try {
-//            RenterResponseDTO renter = renterServiceImpl.registerRenter(renterRequestDTO);
-//
-//            ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
-//                    .status("success")
-//                    .code(200)
-//                    .data(renter)
-//                    .build();
-//
-//            return ResponseEntity.ok(response);
-//
-//        } catch (Exception e) {
-//            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
-//                    .status("error")
-//                    .code(400)
-//                    .data(e.getMessage())
-//                    .build();
-//
-//            return ResponseEntity.badRequest().body((ApiResponse) errorResponse);
-//        }
-        RenterResponseDTO renter = renterServiceImpl.registerRenter(renterRequestDTO);
-
-        ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
-                .status("success")
-                .code(HttpStatus.CREATED.value())
-                .data(renter)
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @PostMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody KycVerificationDTO dto) {
+    public ResponseEntity<ApiResponse<?>> registerUser(@Valid @RequestBody RenterRequestDTO renterRequestDTO) {
         try {
-            Renter verified = renterServiceImpl.verifyKyc(dto);
-            return ResponseEntity.ok(
-                    ApiResponse.<Renter>builder()
-                            .status("success")
-                            .code(200)
-                            .data(verified)
-                            .build()
-            );
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.<String>builder()
-                            .status("error")
-                            .code(400)
-                            .data(e.getMessage())
-                            .build()
-            );
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(
-                    ApiResponse.<String>builder()
-                            .status("error")
-                            .code(500)
-                            .data("Lỗi hệ thống: " + e.getMessage())
-                            .build()
-            );
+            RenterResponseDTO renter = renterService.registerRenter(renterRequestDTO);
+
+            ApiResponse<RenterResponseDTO> response = ApiResponse.<RenterResponseDTO>builder()
+                    .status("success")
+                    .code(HttpStatus.CREATED.value())
+                    .data(renter)
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (RuntimeException ex) {
+            // ❗ Bắt các lỗi do logic (email, phone trùng)
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.BAD_REQUEST.value())
+                    .data(ex.getMessage())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception ex) {
+            // ❗ Bắt các lỗi bất ngờ khác (DB, server, mapping,...)
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .data("Đã xảy ra lỗi máy chủ: " + ex.getMessage())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+
+
 
 
 
@@ -109,21 +89,30 @@ public class RegisterController {
     public ResponseEntity<ApiResponse<?>> loginUser(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Kiểm tra thông tin đăng nhập
-            RenterResponseDTO renter = renterServiceImpl.loginRenter(loginRequest.getEmail(), loginRequest.getPassword());
+            RenterResponseDTO renter = renterService.loginRenter(loginRequest.getEmail(), loginRequest.getPassword());
 
-            // 2️⃣ Sinh JWT token có role RENTER
-            String token = jwtTokenUtil.generateTokenWithRole(renter.getEmail(), "RENTER");
+            // 2️⃣ Sinh JWT token
+            String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                    renter.getRenterId(),     // ✅ userId
+                    renter.getEmail(),        // ✅ email (subject)
+                    "RENTER"                  // ✅ role
+            );
 
-            // 3️⃣ Kiểm tra trạng thái KYC
-            String kycStatus = renterServiceImpl.checkKycStatus(renter.getRenterId());
+            // 3️⃣ Lấy trạng thái KYC
+            String kycStatus = renterService.checkKycStatus(renter.getRenterId());
 
-            // 4️⃣ Trả phản hồi
+            // 4️⃣ Tạo DTO đăng nhập chung (staff/admin/renter đều dùng được)
             LoginResponseDTO authResponse = new LoginResponseDTO(token, renter.getEmail(), kycStatus);
 
-            ApiResponse<LoginResponseDTO> response = ApiResponse.<LoginResponseDTO>builder()
+            // 5️⃣ Dữ liệu trả về cho renter — gói thêm nextStep
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("user", authResponse);
+            responseData.put("nextStep", renter.getNextStep()); // ✅ thêm riêng field này
+
+            ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
                     .status("success")
                     .code(200)
-                    .data(authResponse)
+                    .data(responseData)
                     .build();
 
             return ResponseEntity.ok(response);
@@ -138,14 +127,19 @@ public class RegisterController {
         }
     }
 
+
     @PostMapping("/login/staff")
     public ResponseEntity<ApiResponse<?>> loginStaff(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Xác thực thông tin đăng nhập
-            Staff staff = staffServiceImpl.loginStaff(loginRequest.getEmail(), loginRequest.getPassword());
+            Staff staff = staffService.loginStaff(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token có role STAFF
-            String token = jwtTokenUtil.generateTokenWithRole(staff.getEmail(), "STAFF");
+            String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                    staff.getStaffId(),     // ✅ userId
+                    staff.getEmail(),        // ✅ email (subject)
+                    "STAFF"                  // ✅ role
+            );
 
             // 3️⃣ Chuẩn bị phản hồi
             LoginResponseDTO authResponse = new LoginResponseDTO(token, staff.getEmail(), staff.getStatus().name());
@@ -172,10 +166,14 @@ public class RegisterController {
     public ResponseEntity<ApiResponse<?>> loginAdmin(@Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             // 1️⃣ Xác thực thông tin đăng nhập
-            Admin admin = adminServiceImpl.loginAdmin(loginRequest.getEmail(), loginRequest.getPassword());
+            Admin admin = adminService.loginAdmin(loginRequest.getEmail(), loginRequest.getPassword());
 
             // 2️⃣ Sinh JWT token có role ADMIN
-            String token = jwtTokenUtil.generateTokenWithRole(admin.getEmail(), "ADMIN");
+            String token = jwtTokenUtil.generateTokenWithRoleAndId(
+                    admin.getGlobalAdminId(),     // ✅ userId
+                    admin.getEmail(),        // ✅ email (subject)
+                    "ADMIN"                  // ✅ role
+            );
 
             // 3️⃣ Gộp thông tin trả về
             LoginResponseDTO authResponse = new LoginResponseDTO(token, admin.getEmail(), admin.getStatus().name());

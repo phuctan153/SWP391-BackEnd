@@ -61,7 +61,10 @@ public class Vehicle {
     @OneToMany(mappedBy = "vehicle", cascade = CascadeType.ALL)
     private List<Booking> bookings;
 
+    @OneToMany(mappedBy = "vehicle")
+    private List<VehicleImage> images;
+
     public enum Status {
-        AVAILABLE, RESERVED, IN_USE, MAINTENANCE
+        AVAILABLE, IN_USE, MAINTENANCE, IN_REPAIR, REPAIRED, CANCELLED
     }
 }

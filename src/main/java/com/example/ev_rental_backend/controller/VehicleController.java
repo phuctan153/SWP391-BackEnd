@@ -39,19 +39,4 @@ public class VehicleController {
 
         return ResponseEntity.ok(response);
     }
-
-    @PostMapping("/create")
-    public ResponseEntity<ApiResponse<VehicleResDTO>> createVehicle(
-            @Valid @RequestBody VehicleRequestDTO requestDTO) {
-
-        VehicleResDTO vehicleData = vehicleService.createVehicle(requestDTO);
-
-        ApiResponse<VehicleResDTO> response = ApiResponse.<VehicleResDTO>builder()
-                .status("success")
-                .code(HttpStatus.CREATED.value())
-                .data(vehicleData)
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
 }

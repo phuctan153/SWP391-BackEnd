@@ -30,8 +30,8 @@ public class InvoiceDetail {
 
     // 🔗 1–1 với SparePart (một dòng chỉ chứa một phụ tùng)
     @OneToOne
-    @JoinColumn(name = "sparepart_id", unique = true)
-    private SparePart sparePart;
+    @JoinColumn(name = "price_list_id", unique = true)
+    private PriceList priceList;
 
     // 📝 Mô tả chi tiết
     private String description;

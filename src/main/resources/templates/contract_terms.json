@@ -1,0 +1,22 @@
+[
+  {
+    "termNumber": 1,
+    "termTitle": "Trách nhiệm người thuê",
+    "termContent": "Người thuê chịu trách nhiệm bảo quản xe, tuân thủ quy định giao thông và không cho người khác mượn xe."
+  },
+  {
+    "termNumber": 2,
+    "termTitle": "Thời gian thuê và trả xe",
+    "termContent": "Xe phải được trả đúng hạn. Mọi trường hợp trễ giờ đều sẽ tính thêm phí theo quy định."
+  },
+  {
+    "termNumber": 3,
+    "termTitle": "Tiền cọc và bồi thường",
+    "termContent": "Tiền cọc được hoàn lại sau khi kiểm tra xe không hư hỏng. Nếu xe bị hư hỏng, tiền cọc được dùng để bù chi phí sửa chữa."
+  },
+  {
+    "termNumber": 4,
+    "termTitle": "Chính sách hủy hợp đồng",
+    "termContent": "Người thuê có thể hủy hợp đồng trước 12 giờ trước thời điểm thuê để được hoàn cọc toàn phần."
+  }
+]

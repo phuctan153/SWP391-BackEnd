@@ -13,21 +13,26 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class RenterResponseDTO {
+
     private Long renterId;
     private String fullName;
     private String email;
     private String phoneNumber;
-    private String nationalId;
-    private String driverLicense;
-    private LocalDate driverLicenseExpiry;
     private LocalDate dateOfBirth;
     private String address;
 
+    // ✅ Trạng thái hệ thống
     private String status;          // VERIFIED / PENDING_VERIFICATION / DELETED
     private boolean isBlacklisted;
 
-    private String googleId;        // ID Google (nếu đăng nhập bằng Google)
+    // ✅ Thông tin đăng nhập
+    private String googleId;        // ID Google (nếu có)
     private String authProvider;    // LOCAL / GOOGLE
+
+    // ✅ Trạng thái xác thực
+    private String otpStatus;       // VERIFIED / PENDING
+    private String kycStatus;       // VERIFIED / WAITING_APPROVAL / NEED_UPLOAD / REJECTED
+    private String nextStep;        // EMAIL_OTP / KYC / DASHBOARD
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

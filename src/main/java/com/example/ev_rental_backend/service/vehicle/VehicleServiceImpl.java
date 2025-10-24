@@ -1,10 +1,15 @@
 package com.example.ev_rental_backend.service.vehicle;
 
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleDetailResponseDTO;
+import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
 import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.entity.Vehicle;
+import com.example.ev_rental_backend.entity.VehicleImage;
+import com.example.ev_rental_backend.entity.VehicleModel;
 import com.example.ev_rental_backend.entity.VehicleModel;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
@@ -17,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Optional;
 
 @Service
@@ -26,125 +32,135 @@ public class VehicleServiceImpl implements VehicleService {
     private VehicleRepository vehicleRepository;
 
     @Autowired
-    private VehicleMapper vehicleMapper;
+    private StationRepository stationRepository;
 
     @Autowired
     private VehicleModelRepository vehicleModelRepository;
 
     @Autowired
-    private StationRepository stationRepository;
-
+    private VehicleMapper vehicleMapper;
     @Override
     public List<VehicleResponseDTO> getVehiclesByStationId(Long stationId) {
-        List<Vehicle> vehicles = vehicleRepository.findByStationId(stationId);
+        List<Vehicle> vehicles = vehicleRepository.findVehiclesByStationSorted(stationId);
         return vehicleMapper.toResponseDtoList(vehicles);
     }
 
-    /**
-     * Tạo mới xe gắn với trạm và model
-     */
     @Override
-    @Transactional
-    public VehicleResDTO createVehicle(VehicleRequestDTO requestDTO) {
-        // 1. Validate và lấy Station
-        Station station = stationRepository.findById(requestDTO.getStationId())
-                .orElseThrow(() -> new NotFoundException(
-                        "Không tìm thấy trạm với ID: " + requestDTO.getStationId()
-                ));
+    public VehicleDetailResponseDTO getVehicleDetail(Long vehicleId) {
 
-        // Kiểm tra trạm có đang hoạt động không
-        if (station.getStatus() != Station.Status.ACTIVE) {
-            throw new CustomException(
-                    "Trạm " + station.getName() + " hiện không hoạt động. Không thể thêm xe mới."
-            );
+        Vehicle vehicle = vehicleRepository.findWithBookingsByVehicleId(vehicleId);
+        if (vehicle == null) {
+            throw new RuntimeException("Không tìm thấy xe có ID: " + vehicleId);
         }
 
-        // 2. Validate và lấy VehicleModel
-        VehicleModel vehicleModel = vehicleModelRepository.findById(requestDTO.getModelId())
-                .orElseThrow(() -> new NotFoundException(
-                        "Không tìm thấy model xe với ID: " + requestDTO.getModelId()
-                ));
+        VehicleDetailResponseDTO dto = vehicleMapper.toVehicleDetailDto(vehicle);
+        dto.setBookingHistory(vehicleMapper.toBookingHistoryDtoList(vehicle.getBookings()));
 
-        // 3. Kiểm tra biển số xe đã tồn tại chưa
-        if (vehicleRepository.existsByPlateNumber(requestDTO.getPlateNumber())) {
-            throw new CustomException(
-                    "Biển số xe " + requestDTO.getPlateNumber() + " đã tồn tại trong hệ thống"
+        dto.setFeedbacks(vehicle.getBookings().stream()
+                .filter(b -> b.getBookingRating() != null)
+                .map(b -> vehicleMapper.toVehicleFeedbackDto(b.getBookingRating()))
+                .toList());
+
+        if (vehicle.getImages() != null && !vehicle.getImages().isEmpty()) {
+            dto.setImageUrls(
+                    vehicle.getImages().stream()
+                            .map(VehicleImage::getImageUrl)
+                            .toList()
             );
+        } else {
+            dto.setImageUrls(List.of()); // Trả list rỗng nếu không có ảnh
         }
 
-        // 4. Kiểm tra số lượng xe trong trạm (car_number)
-        long currentVehicleCount = Optional.ofNullable(station.getVehicles())
-                .map(vehicles -> vehicles.stream()
-                        .filter(v -> v.getStatus() != Vehicle.Status.MAINTENANCE)
-                        .count())
-                .orElse(0L);
-
-        if (currentVehicleCount >= station.getCar_number()) {
-            throw new CustomException(
-                    "Trạm " + station.getName() + " đã đầy (" +
-                            currentVehicleCount + "/" + station.getCar_number() + "). " +
-                            "Không thể thêm xe mới."
-            );
-        }
-
-        // 5. Validate dữ liệu đầu vào
-        validateVehicleData(requestDTO);
-
-        // 6. Map DTO -> Entity
-        Vehicle vehicle = vehicleMapper.toEntity(requestDTO);
-
-        // 7. Gán station và model vào vehicle
-        vehicle.setStation(station);
-        vehicle.setModel(vehicleModel);
-
-        // 8. Lưu vehicle vào database
-        Vehicle savedVehicle = vehicleRepository.save(vehicle);
-
-        // 9. Fetch lại với station và model để tránh lazy loading
-        Vehicle vehicleWithRelations = vehicleRepository
-                .findByIdWithStationAndModel(savedVehicle.getVehicleId())
-                .orElse(savedVehicle);
-
-        // 10. Map Entity -> Response DTO và trả về
-        return vehicleMapper.toDto(vehicleWithRelations);
+        return dto;
     }
 
-    /**
-     * Validate dữ liệu đầu vào
-     */
-    private void validateVehicleData(VehicleRequestDTO requestDTO) {
-        // Kiểm tra mức pin hợp lý cho xe mới
-        if (requestDTO.getBatteryLevel() < 20.0) {
-            throw new CustomException(
-                    "Xe mới tạo phải có mức pin >= 20%"
-            );
+    @Override
+    public List<VehicleDTO> getAllVehicles() {
+        return vehicleRepository.findAll().stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public VehicleDTO createVehicle(VehicleDTO dto) {
+        if (vehicleRepository.existsByPlateNumber(dto.getPlateNumber())) {
+            throw new RuntimeException("Plate number already exists");
         }
 
-        // Kiểm tra quãng đường hợp lý
-        if (requestDTO.getMileage() > 100000.0) {
-            throw new CustomException(
-                    "Quãng đường vượt quá giới hạn cho phép (100,000 km)"
-            );
+        Station station = stationRepository.findById(dto.getStationId())
+                .orElseThrow(() -> new RuntimeException("Station not found"));
+        VehicleModel model = vehicleModelRepository.findById(dto.getModelId())
+                .orElseThrow(() -> new RuntimeException("Model not found"));
+
+        Vehicle v = Vehicle.builder()
+                .vehicleName(dto.getVehicleName())
+                .station(station)
+                .model(model)
+                .pricePerHour(dto.getPricePerHour())
+                .pricePerDay(dto.getPricePerDay())
+                .plateNumber(dto.getPlateNumber())
+                .batteryLevel(dto.getBatteryLevel())
+                .mileage(dto.getMileage())
+                .description(dto.getDescription())
+                .status(dto.getStatus() == null ? Vehicle.Status.AVAILABLE : dto.getStatus())
+                .build();
+
+        vehicleRepository.save(v);
+        return mapToDTO(v);
+    }
+
+    @Override
+    public VehicleDTO updateVehicle(Long id, VehicleDTO dto) {
+        Vehicle v = vehicleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+
+        v.setVehicleName(dto.getVehicleName());
+        v.setPricePerHour(dto.getPricePerHour());
+        v.setPricePerDay(dto.getPricePerDay());
+        v.setBatteryLevel(dto.getBatteryLevel());
+        v.setMileage(dto.getMileage());
+        v.setDescription(dto.getDescription());
+        v.setStatus(dto.getStatus());
+
+        // Cập nhật quan hệ nếu có thay đổi
+        if (dto.getStationId() != null) {
+            Station station = stationRepository.findById(dto.getStationId())
+                    .orElseThrow(() -> new RuntimeException("Station not found"));
+            v.setStation(station);
         }
 
-        // Kiểm tra giá thuê theo ngày phải lớn hơn giá thuê theo giờ * 8
-        if (requestDTO.getPricePerDay() < requestDTO.getPricePerHour() * 8) {
-            throw new CustomException(
-                    "Giá thuê theo ngày phải >= giá thuê theo giờ x 8"
-            );
+        if (dto.getModelId() != null) {
+            VehicleModel model = vehicleModelRepository.findById(dto.getModelId())
+                    .orElseThrow(() -> new RuntimeException("Model not found"));
+            v.setModel(model);
         }
 
-        // Kiểm tra giá thuê hợp lý
-        if (requestDTO.getPricePerHour() < 10000.0) {
-            throw new CustomException(
-                    "Giá thuê theo giờ phải >= 10,000 VNĐ"
-            );
-        }
+        vehicleRepository.save(v);
+        return mapToDTO(v);
+    }
 
-        if (requestDTO.getPricePerDay() < 50000.0) {
-            throw new CustomException(
-                    "Giá thuê theo ngày phải >= 50,000 VNĐ"
-            );
-        }
+    @Override
+    public void deleteVehicle(Long id) {
+        Vehicle v = vehicleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+        vehicleRepository.delete(v);
+    }
+
+    private VehicleDTO mapToDTO(Vehicle v) {
+        return VehicleDTO.builder()
+                .vehicleId(v.getVehicleId())
+                .vehicleName(v.getVehicleName())
+                .stationId(v.getStation().getStationId())
+                .stationName(v.getStation().getName())
+                .modelId(v.getModel().getModelId())
+                .modelName(v.getModel().getModelName())
+                .pricePerHour(v.getPricePerHour())
+                .pricePerDay(v.getPricePerDay())
+                .plateNumber(v.getPlateNumber())
+                .batteryLevel(v.getBatteryLevel())
+                .mileage(v.getMileage())
+                .description(v.getDescription())
+                .status(v.getStatus())
+                .build();
     }
 }

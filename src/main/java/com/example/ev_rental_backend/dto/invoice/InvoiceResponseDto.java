@@ -20,6 +20,7 @@ public class InvoiceResponseDto {
     private Invoice.Type type;
     private Double depositAmount;
     private Double totalAmount;
+    private Double amountRemaining;
     private Invoice.Status status;
     private Invoice.PaymentMethod paymentMethod;
     private String notes;

@@ -1,10 +1,7 @@
 package com.example.ev_rental_backend.service.Invoice;
 
 import com.example.ev_rental_backend.dto.invoice.*;
-import com.example.ev_rental_backend.entity.Booking;
-import com.example.ev_rental_backend.entity.Invoice;
-import com.example.ev_rental_backend.entity.InvoiceDetail;
-import com.example.ev_rental_backend.entity.PriceList;
+import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
 import com.example.ev_rental_backend.mapper.InvoiceMapper;
@@ -82,7 +79,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .depositAmount(requestDto.getDepositAmount())
                 .totalAmount(requestDto.getDepositAmount())
                 .status(Invoice.Status.UNPAID)
-                .paymentMethod(Invoice.PaymentMethod.CASH)
+                .paymentMethod(Invoice.PaymentMethod.MOMO)
                 .notes(requestDto.getNotes())
                 .build();
 
@@ -203,6 +200,10 @@ public class InvoiceServiceImpl implements InvoiceService {
     // Helper methods
 
     private void updateInvoiceTotalAmount(Invoice invoice) {
+        if (invoice.getLines() == null) {
+            invoice.setLines(new ArrayList<>());
+        }
+
         Double detailsTotal = invoice.getLines().stream()
                 .mapToDouble(detail -> detail.getLineTotal() != null ? detail.getLineTotal() : 0.0)
                 .sum();
@@ -211,21 +212,49 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceRepository.save(invoice);
     }
 
+    /**
+     * Tính tổng số tiền đã thanh toán
+     */
+    private Double calculateTotalPaid(Invoice invoice) {
+        if (invoice.getTransactions() == null) {
+            return 0.0;
+        }
+
+        return invoice.getTransactions().stream()
+                .filter(t -> t.getStatus() == PaymentTransaction.Status.SUCCESS)
+                .mapToDouble(t -> t.getAmount().doubleValue())
+                .sum();
+    }
+
     private InvoiceResponseDto mapToResponseDto(Invoice invoice) {
+        // Tính tổng số tiền đã thanh toán
+        Double totalPaid = calculateTotalPaid(invoice);
+
+        // Tính số tiền còn phải trả
+        Double amountRemaining = invoice.getTotalAmount() - totalPaid;
+
+        // Đảm bảo không âm
+        if (amountRemaining < 0) {
+            amountRemaining = 0.0;
+        }
+
         return InvoiceResponseDto.builder()
                 .invoiceId(invoice.getInvoiceId())
                 .bookingId(invoice.getBooking().getBookingId())
                 .type(invoice.getType())
                 .depositAmount(invoice.getDepositAmount())
                 .totalAmount(invoice.getTotalAmount())
+                .amountRemaining(amountRemaining) // ← Thêm field mới
                 .status(invoice.getStatus())
                 .paymentMethod(invoice.getPaymentMethod())
                 .notes(invoice.getNotes())
                 .createdAt(invoice.getCreatedAt())
                 .completedAt(invoice.getCompletedAt())
-                .details(invoice.getLines().stream()
-                        .map(this::mapToDetailResponseDto)
-                        .collect(Collectors.toList()))
+                .details(invoice.getLines() != null ?
+                        invoice.getLines().stream()
+                                .map(this::mapToDetailResponseDto)
+                                .collect(Collectors.toList())
+                        : new ArrayList<>())
                 .build();
     }
 

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
-public class AdminController {
+public class BlacklistAdminController {
 
     private final BookingService bookingService;
 
@@ -87,6 +87,29 @@ public class AdminController {
                             .status("error")
                             .code(400)
                             .data(e.getMessage())
+                            .build()
+            );
+        }
+    }
+
+    @GetMapping("/blacklist")
+    public ResponseEntity<ApiResponse<?>> getBlacklistedRenters() {
+        try {
+            var blacklisted = adminReportService.getBlacklistedRenters();
+
+            return ResponseEntity.ok(
+                    ApiResponse.builder()
+                            .status("success")
+                            .code(200)
+                            .data(blacklisted)
+                            .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(
+                    ApiResponse.builder()
+                            .status("error")
+                            .code(500)
+                            .data("Lỗi hệ thống: " + e.getMessage())
                             .build()
             );
         }

@@ -20,6 +20,45 @@ public class StaffController {
 
     private final RenterService renterService;
 
+    @GetMapping("/renters")
+    public ResponseEntity<ApiResponse<?>> getRentersByStatus(
+            @RequestParam(name = "status", required = false) String status) {
+        try {
+            List<RenterResponseDTO> renters;
+
+            if (status == null || status.isBlank()) {
+                renters = renterService.getAllRenters(); // lấy toàn bộ nếu không truyền status
+            } else {
+                renters = renterService.getRentersByStatus(status.toUpperCase());
+            }
+
+            ApiResponse<List<RenterResponseDTO>> response = ApiResponse.<List<RenterResponseDTO>>builder()
+                    .status("success")
+                    .code(HttpStatus.OK.value())
+                    .data(renters)
+                    .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.BAD_REQUEST.value())
+                    .data(e.getMessage())
+                    .build();
+
+            return ResponseEntity.badRequest().body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .data("Lỗi hệ thống: " + e.getMessage())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
 
 
     @PutMapping("/renter/{renterId}/verify")

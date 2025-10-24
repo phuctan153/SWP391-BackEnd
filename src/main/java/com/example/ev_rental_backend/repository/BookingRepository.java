@@ -51,6 +51,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         WHERE b.bookingId = :bookingId
     """)
     Optional<Booking> findBookingWithDetails(Long bookingId);
+
+    List<Booking> findByStaff_StaffIdAndStatus(Long staffId, Booking.Status status);
     /**
      * Tìm các booking có thời gian trùng lặp với xe cụ thể
      * BR-07: Kiểm tra xe có sẵn trong khoảng thời gian không

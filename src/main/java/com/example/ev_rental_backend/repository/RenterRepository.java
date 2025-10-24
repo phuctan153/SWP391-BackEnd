@@ -31,6 +31,8 @@ public interface RenterRepository extends JpaRepository<Renter, Long> {
       AND rp.lastViolationAt < :threshold
 """)
     List<Renter> findBlacklistedOver6Months(@Param("threshold") LocalDateTime threshold);
+
+    List<Renter> findByIsBlacklistedTrue();
 }
 
 

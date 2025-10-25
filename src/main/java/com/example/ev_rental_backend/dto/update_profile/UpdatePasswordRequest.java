@@ -1,4 +1,4 @@
-package com.example.ev_rental_backend.dto.update_password;
+package com.example.ev_rental_backend.dto.update_profile;
 
 import com.example.ev_rental_backend.dto.renter.validation.PasswordMatches;
 import jakarta.validation.constraints.NotBlank;

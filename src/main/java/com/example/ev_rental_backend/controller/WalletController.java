@@ -15,16 +15,16 @@ public class WalletController {
 
     private final WalletService walletService;
 
-    // ✅ Hoàn cọc dựa trên PriceList
-    @PostMapping("/refund-deposit/{renterId}")
-    public ResponseEntity<ApiResponse<Wallet>> refundDeposit(@PathVariable Long renterId) {
+    @PostMapping("/refund-deposit/{bookingId}")
+    public ResponseEntity<ApiResponse<Wallet>> refundDeposit(@PathVariable Long bookingId) {
         try {
-            Wallet wallet = walletService.refundDepositFromPriceList(renterId);
+            Wallet wallet = walletService.refundDepositFromPriceList(bookingId);
             return ResponseEntity.ok(
                     ApiResponse.<Wallet>builder()
                             .status("success")
                             .code(200)
-                            .data(wallet)
+                            .message("Hoàn tiền thành công")
+//                            .data(wallet)
                             .build()
             );
         } catch (RuntimeException e) {

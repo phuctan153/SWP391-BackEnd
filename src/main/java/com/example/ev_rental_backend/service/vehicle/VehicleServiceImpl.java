@@ -3,17 +3,15 @@ package com.example.ev_rental_backend.service.vehicle;
 import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleDetailResponseDTO;
-import com.example.ev_rental_backend.entity.Station;
+import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
 import com.example.ev_rental_backend.entity.Station;
-import com.example.ev_rental_backend.entity.Vehicle;
-import com.example.ev_rental_backend.entity.VehicleImage;
-import com.example.ev_rental_backend.entity.VehicleModel;
 import com.example.ev_rental_backend.entity.VehicleModel;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
 import com.example.ev_rental_backend.mapper.VehicleMapper;
+import com.example.ev_rental_backend.repository.StaffStationRepository;
 import com.example.ev_rental_backend.repository.StationRepository;
 import com.example.ev_rental_backend.repository.VehicleModelRepository;
 import com.example.ev_rental_backend.repository.VehicleRepository;
@@ -32,6 +30,9 @@ public class VehicleServiceImpl implements VehicleService {
     private VehicleRepository vehicleRepository;
 
     @Autowired
+    private StaffStationRepository staffStationRepository;
+
+    @Autowired
     private StationRepository stationRepository;
 
     @Autowired
@@ -39,6 +40,25 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Autowired
     private VehicleMapper vehicleMapper;
+
+    @Override
+    public Station getCurrentStationByStaff(Long staffId) {
+        StaffStation active = staffStationRepository
+                .findTopByStaff_StaffIdAndStatusOrderByAssignedAtDesc(
+                        staffId, StaffStation.Status.ACTIVE)
+                .orElseThrow(() ->
+                        new NotFoundException("Staff hiện không được gán cho trạm nào!"));
+
+        return active.getStation();
+    }
+
+    @Override
+    public List<VehicleResponseDTO> getVehiclesByCurrentStaffStation(Long staffId) {
+        Station station = getCurrentStationByStaff(staffId);
+        List<Vehicle> vehicles = vehicleRepository.findVehiclesByStationSorted(station.getStationId());
+        return vehicleMapper.toResponseDtoList(vehicles);
+    }
+
     @Override
     public List<VehicleResponseDTO> getVehiclesByStationId(Long stationId) {
         List<Vehicle> vehicles = vehicleRepository.findVehiclesByStationSorted(stationId);

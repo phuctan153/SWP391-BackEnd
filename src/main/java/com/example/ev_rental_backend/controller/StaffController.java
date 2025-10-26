@@ -1,10 +1,14 @@
 package com.example.ev_rental_backend.controller;
 
 
+import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
+import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
+import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.service.renter.RenterService;
 import com.example.ev_rental_backend.service.renter.RenterServiceImpl;
+import com.example.ev_rental_backend.service.vehicle.VehicleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +23,43 @@ import java.util.List;
 public class StaffController {
 
     private final RenterService renterService;
+    private final VehicleService vehicleService;
+    private final JwtTokenUtil jwtTokenUtil;
+
+    @GetMapping("/my-station")
+    public ResponseEntity<ApiResponse<?>> getMyStation(
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+            Long staffId = jwtTokenUtil.extractUserId(token);
+
+            List<VehicleResponseDTO> vehicleList = vehicleService.getVehiclesByCurrentStaffStation(staffId);
+
+            ApiResponse<List<VehicleResponseDTO>> response = ApiResponse.<List<VehicleResponseDTO>>builder()
+                    .status("success")
+                    .code(HttpStatus.OK.value())
+                    .data(vehicleList)
+                    .message("Fetched vehicle list successfully.")
+                    .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            ApiResponse<String> error = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.BAD_REQUEST.value())
+                    .data(e.getMessage())
+                    .build();
+            return ResponseEntity.badRequest().body(error);
+        } catch (Exception e) {
+            ApiResponse<String> error = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .data("Lỗi hệ thống: " + e.getMessage())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
 
     @GetMapping("/renters")
     public ResponseEntity<ApiResponse<?>> getRentersByStatus(

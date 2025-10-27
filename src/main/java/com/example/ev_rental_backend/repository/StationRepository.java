@@ -35,4 +35,7 @@ public interface StationRepository extends JpaRepository<Station, Long> {
     GROUP BY s.stationId, s.name
     """)
     List<Object[]> countActiveBookingsByStation();
+
+    @Query("SELECT s FROM Station s WHERE s.status = com.example.ev_rental_backend.entity.Station.Status.ACTIVE")
+    List<Station> findAllActiveStations();
 }

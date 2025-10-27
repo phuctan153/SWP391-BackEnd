@@ -24,6 +24,8 @@ public interface StationMapper {
     VehicleResponseDTO toVehicleDto(Vehicle vehicle);
 
 
+
+
     @Mapping(target = "stationId", ignore = true)
     @Mapping(target = "vehicles", ignore = true)
     @Mapping(target = "staffStations", ignore = true)
@@ -87,4 +89,6 @@ public interface StationMapper {
                         .build())
                 .collect(Collectors.toList());
     }
+
+
 }

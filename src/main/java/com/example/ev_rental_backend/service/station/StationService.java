@@ -12,6 +12,6 @@ public interface StationService {
 
     CreateStationResponseDTO createStation(StationRequestDTO requestDTO);
 
-//    StationResponseDTO updateStation(Long stationId, StationRequestDTO requestDTO);
+    StationResponseDTO updateStation(Long stationId, StationRequestDTO requestDTO);
     void deleteStation(Long stationId);
 }

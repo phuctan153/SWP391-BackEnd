@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ev_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ev_rental_official
+      MYSQL_USER: ev_user
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./db/ev_rental.sql:/docker-entrypoint-initdb.d/ev_rental.sql
+      - ./mysql_data:/var/lib/mysql

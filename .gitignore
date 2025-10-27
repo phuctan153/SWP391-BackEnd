@@ -1,0 +1,10 @@
+# Bỏ qua thư mục Docker volume
+mysql_data/
+
+# Bỏ file tạm, cache
+*.log
+*.tmp
+
+# Bỏ file hệ thống
+.DS_Store
+Thumbs.db

@@ -5,6 +5,7 @@ import com.example.ev_rental_backend.dto.contract.AdminContractSignDTO;
 import com.example.ev_rental_backend.dto.contract.ContractRequestDTO;
 import com.example.ev_rental_backend.dto.contract.ContractResponseDTO;
 import com.example.ev_rental_backend.entity.*;
+import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.notification.NotificationService;
 import jakarta.mail.internet.MimeMessage;
@@ -428,6 +429,33 @@ public class ContractServiceImpl implements ContractService{
                 """.formatted(renter.getFullName(), contract.getContractId())
         );
     }
+
+    @Override
+    public ContractResponseDTO getContractByBookingId(Long bookingId) {
+        Contract contract = contractRepository.findByBooking_BookingId(bookingId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy hợp đồng cho booking này."));
+
+        return ContractResponseDTO.builder()
+                .contractId(contract.getContractId())
+                .bookingId(bookingId)
+                .contractType(contract.getContractType().name())
+                .contractFileUrl(contract.getContractFileUrl())
+                .status(contract.getStatus().name())
+                .contractDate(contract.getContractDate())
+                .adminSignedAt(contract.getAdminSignedAt())
+                .renterSignedAt(contract.getRenterSignedAt())
+                .adminName(contract.getAdmin() != null ? contract.getAdmin().getFullName() : null)
+                .renterName(contract.getBooking().getRenter().getFullName())
+                .terms(contract.getTerms().stream()
+                        .map(t -> ContractResponseDTO.TermConditionDTO.builder()
+                                .termNumber(t.getTermNumber())
+                                .termTitle(t.getTermTitle())
+                                .termContent(t.getTermContent())
+                                .build())
+                        .toList())
+                .build();
+    }
+
 
 
     // 📧 Gửi email helper

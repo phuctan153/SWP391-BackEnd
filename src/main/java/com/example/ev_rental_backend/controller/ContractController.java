@@ -246,6 +246,25 @@ public class ContractController {
         }
     }
 
+    @GetMapping("/renter/contracts/{bookingId}")
+    public ResponseEntity<ApiResponse<?>> getContractByBookingId(@PathVariable Long bookingId) {
+        try {
+            ContractResponseDTO dto = contractService.getContractByBookingId(bookingId);
+            return ResponseEntity.ok(ApiResponse.<ContractResponseDTO>builder()
+                    .status("success")
+                    .code(200)
+                    .data(dto)
+                    .build());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
+                    .status("error")
+                    .code(400)
+                    .data(e.getMessage())
+                    .build());
+        }
+    }
+
+
 
 
 

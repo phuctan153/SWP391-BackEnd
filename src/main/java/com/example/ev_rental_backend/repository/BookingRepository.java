@@ -122,4 +122,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT b FROM Booking b WHERE b.status = 'IN_USE' " +
             "AND DATE(b.endDateTime) = DATE(:today)")
     List<Booking> findBookingsDueToday(@Param("today") LocalDateTime today);
+
+    List<Booking> findByRenterAndStatus(Renter renter, Booking.Status bookingStatus);
 }

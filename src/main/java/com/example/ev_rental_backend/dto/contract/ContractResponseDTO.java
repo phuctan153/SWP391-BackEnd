@@ -22,6 +22,12 @@ public class ContractResponseDTO {
     private LocalDateTime contractDate;
     private List<TermConditionDTO> terms;
 
+    private String adminName;
+    private String renterName;
+
+    private LocalDateTime adminSignedAt;
+    private LocalDateTime renterSignedAt;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

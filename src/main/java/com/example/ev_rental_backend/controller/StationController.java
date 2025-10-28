@@ -11,6 +11,7 @@ import com.example.ev_rental_backend.service.vehicle.VehicleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -81,19 +82,59 @@ public class StationController {
     }
 
     //API tạo mới trạm
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create")
     public ResponseEntity<ApiResponse<CreateStationResponseDTO>> createStation(
-            @Valid @RequestBody StationRequestDTO requestDTO) {
-
+            @Valid @RequestBody StationRequestDTO requestDTO
+    ) {
         CreateStationResponseDTO stationData = stationService.createStation(requestDTO);
 
-        ApiResponse<CreateStationResponseDTO> response = ApiResponse.<CreateStationResponseDTO>builder()
-                .status("success")
-                .code(HttpStatus.CREATED.value())
-                .data(stationData)
-                .build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                ApiResponse.<CreateStationResponseDTO>builder()
+                        .status("success")
+                        .code(HttpStatus.CREATED.value())
+                        .data(stationData)
+                        .build()
+        );
+    }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    /**
+     * ✏️ Cập nhật trạm — chỉ Admin được phép
+     * Ví dụ: PUT /api/stations/5
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{stationId}")
+    public ResponseEntity<ApiResponse<StationResponseDTO>> updateStation(
+            @PathVariable Long stationId,
+            @Valid @RequestBody StationRequestDTO requestDTO
+    ) {
+        StationResponseDTO updatedStation = stationService.updateStation(stationId, requestDTO);
+
+        return ResponseEntity.ok(
+                ApiResponse.<StationResponseDTO>builder()
+                        .status("success")
+                        .code(HttpStatus.OK.value())
+                        .data(updatedStation)
+                        .build()
+        );
+    }
+
+    /**
+     * 🗑️ Xóa (vô hiệu hóa) trạm — chỉ Admin được phép
+     * Ví dụ: DELETE /api/stations/5
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/{stationId}")
+    public ResponseEntity<ApiResponse<String>> deleteStation(@PathVariable Long stationId) {
+        stationService.deleteStation(stationId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .status("success")
+                        .code(HttpStatus.OK.value())
+                        .data("Đã vô hiệu hóa trạm có ID = " + stationId)
+                        .build()
+        );
     }
 
 }

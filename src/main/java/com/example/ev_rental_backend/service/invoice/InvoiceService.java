@@ -1,4 +1,4 @@
-package com.example.ev_rental_backend.service.Invoice;
+package com.example.ev_rental_backend.service.invoice;
 
 import com.example.ev_rental_backend.dto.invoice.*;
 

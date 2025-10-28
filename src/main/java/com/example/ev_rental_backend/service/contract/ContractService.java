@@ -24,4 +24,6 @@ public interface ContractService {
     public void sendOtpToRenter(Long bookingId);
 
     public void verifyRenterSignature(Long bookingId, String otpCode);
+
+    public ContractResponseDTO getContractByBookingId(Long bookingId);
 }

@@ -2,7 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.invoice.*;
-import com.example.ev_rental_backend.service.Invoice.InvoiceService;
+import com.example.ev_rental_backend.service.invoice.InvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

@@ -2,7 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
-import com.example.ev_rental_backend.dto.update_password.UpdatePasswordRequest;
+import com.example.ev_rental_backend.dto.update_profile.UpdatePasswordRequest;
 import com.example.ev_rental_backend.service.auth.PasswordUpdateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

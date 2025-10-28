@@ -63,6 +63,7 @@ public class RenterController {
             RenterResponseDTO responseDTO = renterMapper.toResponseDto(renter);
             responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
 
+            responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
             return ResponseEntity.ok(ApiResponse.builder()
                     .status("success")
                     .code(200)

@@ -61,6 +61,7 @@ public class RenterController {
 
             // 🔹 Map sang DTO phản hồi
             RenterResponseDTO responseDTO = renterMapper.toResponseDto(renter);
+            responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
 
             return ResponseEntity.ok(ApiResponse.builder()
                     .status("success")

@@ -20,6 +20,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      */
     List<Booking> findByRenter(Renter renter);
 
+    List<Booking> findByRenterOrderByCreatedAtDesc(Renter renter);
+
+
     Optional<Booking> findByBookingId(Long bookingId);
 
     // Kiểm tra xem renter có ít nhất 1 booking active không

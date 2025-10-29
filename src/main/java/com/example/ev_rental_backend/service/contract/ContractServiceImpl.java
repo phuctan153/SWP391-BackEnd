@@ -1,5 +1,7 @@
 package com.example.ev_rental_backend.service.contract;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.example.ev_rental_backend.dto.booking.BookingContractInfoDTO;
 import com.example.ev_rental_backend.dto.contract.AdminContractSignDTO;
 import com.example.ev_rental_backend.dto.contract.ContractRequestDTO;
@@ -14,8 +16,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
@@ -31,15 +36,30 @@ public class ContractServiceImpl implements ContractService{
     private final AdminRepository adminRepository;
     private final OtpVerificationRepository otpVerificationRepository;
     private final JavaMailSender mailSender;
+    private final StaffRepository staffRepository;
+    private final Cloudinary cloudinary;
 
     @Transactional
-    public ContractResponseDTO createContract(ContractRequestDTO dto) {
+    public ContractResponseDTO createContract(ContractRequestDTO dto, Long adminId) {
+
+        // 🔹 1️⃣ Kiểm tra booking tồn tại
         Booking booking = bookingRepository.findById(dto.getBookingId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy booking"));
 
         if (booking.getStatus() != Booking.Status.RESERVED)
             throw new RuntimeException("Booking không hợp lệ để tạo hợp đồng");
 
+        // 🔹 2️⃣ Lấy thông tin Staff đang tạo hợp đồng
+        Staff admin = staffRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tạo hợp đồng"));
+
+        // 🔹 3️⃣ Gán staff cho booking nếu chưa có
+        if (booking.getStaff() == null) {
+            booking.setStaff(admin);
+            bookingRepository.save(booking);
+        }
+
+        // 🔹 4️⃣ Tạo contract entity mới
         Contract contract = Contract.builder()
                 .booking(booking)
                 .contractType(Contract.ContractType.valueOf(dto.getContractType().toUpperCase()))
@@ -47,10 +67,10 @@ public class ContractServiceImpl implements ContractService{
                 .status(Contract.Status.PENDING_ADMIN_SIGNATURE)
                 .build();
 
-        // 🧩 1️⃣ Lưu contract trước để có ID
+        // 🔹 5️⃣ Lưu contract trước để có ID
         contractRepository.save(contract);
 
-        // 🧾 2️⃣ Lưu điều khoản
+        // 🔹 6️⃣ Lưu điều khoản
         for (ContractRequestDTO.TermConditionDTO t : dto.getTerms()) {
             termConditionRepository.save(
                     TermCondition.builder()
@@ -62,18 +82,25 @@ public class ContractServiceImpl implements ContractService{
             );
         }
 
-        // 📄 3️⃣ Render file HTML hoặc PDF
-        String fileUrl = pdfGeneratorService.generateContractFile(contract); // → service riêng
-
-        // 💾 4️⃣ Lưu URL vào DB
+        // 🔹 7️⃣ Render file hợp đồng (PDF/HTML)
+//        String fileUrl = pdfGeneratorService.generateContractFile(contract);
+//        contract.setContractFileUrl(fileUrl);
+        String localFilePath = pdfGeneratorService.generateContractFile(contract);
+        File file = new File(localFilePath);
+        String fileUrl = uploadContractFile(file);
         contract.setContractFileUrl(fileUrl);
+
+        // 🔹 8️⃣ Lưu lại contract có fileUrl
         contractRepository.save(contract);
 
+        // 🔹 9️⃣ Gán contract vào booking
         booking.setContract(contract);
         bookingRepository.save(booking);
 
+        // 🔹 🔟 Trả về DTO phản hồi
         return mapToResponse(contract);
     }
+
 
 
     @Override
@@ -371,25 +398,28 @@ public class ContractServiceImpl implements ContractService{
     @Override
     @Transactional
     public void verifyRenterSignature(Long bookingId, String otpCode) {
+        // 🔍 Lấy hợp đồng theo booking
         Contract contract = contractRepository.findByBooking_BookingId(bookingId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng của booking #" + bookingId));
 
+        // 🛑 Kiểm tra hợp đồng đã được admin ký chưa
         if (contract.getStatus() != Contract.Status.ADMIN_SIGNED) {
-            throw new RuntimeException("Hợp đồng chưa được quản trị viên ký duyệt.");
+            throw new RuntimeException("Hợp đồng chưa được quản trị viên ký duyệt. Bạn không thể ký lúc này.");
         }
 
-        // 🔍 Lấy OTP mới nhất
-        Optional<OtpVerification> otpOpt = otpVerificationRepository.findTopByContractOrderByCreatedAtDesc(contract);
-        OtpVerification otp = otpOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
+        // 🔍 Lấy OTP mới nhất của hợp đồng
+        OtpVerification otp = otpVerificationRepository
+                .findTopByContractOrderByCreatedAtDesc(contract)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
 
-        // ⏰ Kiểm tra hết hạn
+        // ⏰ Hết hạn
         if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
             otp.setStatus(OtpVerification.Status.FAILED);
             otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP đã hết hạn.");
         }
 
-        // ❌ Sai mã OTP
+        // ❌ Sai mã
         if (!otp.getOtpCode().equals(otpCode)) {
             otp.setAttemptCount(otp.getAttemptCount() + 1);
             otpVerificationRepository.save(otp);
@@ -401,34 +431,77 @@ public class ContractServiceImpl implements ContractService{
         otp.setStatus(OtpVerification.Status.VERIFIED);
         otpVerificationRepository.save(otp);
 
-        // 📝 Cập nhật hợp đồng
+        // ✍️ Cập nhật hợp đồng (renter ký)
         contract.setStatus(Contract.Status.FULLY_SIGNED);
         contract.setRenterSignedAt(LocalDateTime.now());
 
-        // 🧩 Regenerate lại PDF với trạng thái FULLY_SIGNED
+        // 🔄 Regenerate lại file PDF có chữ ký renter
         String newFileUrl = pdfGeneratorService.generateContractFile(contract);
         contract.setContractFileUrl(newFileUrl);
 
         contractRepository.save(contract);
 
+        // 📧 Gửi email thông báo cho renter
         Renter renter = contract.getBooking().getRenter();
-
-        // 📧 Gửi email xác nhận ký thành công
         sendEmail(
                 renter.getEmail(),
                 "✅ Hợp đồng đã được ký thành công",
                 """
                 Xin chào %s,
-    
+                
                 Bạn đã hoàn tất ký hợp đồng #%d thành công.
                 Xe của bạn hiện đã sẵn sàng để nhận tại trạm.
-    
+                
                 Trân trọng,
                 EV Rental System
                 """.formatted(renter.getFullName(), contract.getContractId())
         );
     }
 
+    @Override
+    public String uploadContractFile(File file) {
+        try {
+            Map uploadResult = cloudinary.uploader().upload(file, ObjectUtils.asMap(
+                    "folder", "ev_rental/contracts",
+                    "resource_type", "raw" // raw dùng cho PDF, DOCX, ZIP,...
+            ));
+            return uploadResult.get("secure_url").toString();
+        } catch (IOException e) {
+            throw new RuntimeException("Lỗi upload hợp đồng lên Cloudinary: " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public String getContractFileUrl(Long contractId, Long userId, String role) {
+
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng."));
+
+        Booking booking = contract.getBooking();
+
+        // 🧱 Kiểm tra phân quyền
+        switch (role.toUpperCase()) {
+            case "RENTER" -> {
+                if (!booking.getRenter().getRenterId().equals(userId)) {
+                    throw new RuntimeException("Bạn không có quyền xem hợp đồng này.");
+                }
+            }
+            case "STAFF" -> {
+                if (booking.getStaff() == null ||
+                        !booking.getStaff().getStaffId().equals(userId)) {
+                    throw new RuntimeException("Bạn không có quyền xem hợp đồng này.");
+                }
+            }
+            case "ADMIN" -> {
+                // Admin có quyền xem tất cả
+            }
+            default -> throw new RuntimeException("Vai trò người dùng không hợp lệ.");
+        }
+
+        // ✅ Nếu qua được kiểm tra => trả link Cloudinary
+        return contract.getContractFileUrl();
+    }
 
     // 📧 Gửi email helper
     private void sendEmail(String to, String subject, String text) {

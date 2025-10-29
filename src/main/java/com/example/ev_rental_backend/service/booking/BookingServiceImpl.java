@@ -409,7 +409,8 @@ public class BookingServiceImpl implements BookingService {
             }
         } else {
             // Lấy tất cả
-            bookings = bookingRepository.findByRenter(renter);
+            bookings = bookingRepository.findByRenterOrderByCreatedAtDesc(renter);
+
         }
 
         // Sắp xếp theo thời gian tạo (mới nhất trước)

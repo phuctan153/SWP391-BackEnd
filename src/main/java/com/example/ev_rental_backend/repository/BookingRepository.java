@@ -24,6 +24,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     // Kiểm tra xem renter có ít nhất 1 booking active không
     boolean existsByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
+    Booking findByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
 
     /**
      * Tìm booking theo vehicle ID

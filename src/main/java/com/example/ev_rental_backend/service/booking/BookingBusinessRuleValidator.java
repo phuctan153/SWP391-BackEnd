@@ -108,15 +108,15 @@ public class BookingBusinessRuleValidator {
      * BR-16: Giới hạn thuê 1 xe - Mỗi tài khoản chỉ được có 1 booking RESERVED hoặc IN_USE
      */
     public void validateRenterHasNoActiveBooking(Renter renter) {
-        boolean hasActiveBooking = bookingRepository.existsByRenter_RenterIdAndStatusIn(
+        Booking hasActiveBooking = bookingRepository.findByRenter_RenterIdAndStatusIn(
                 renter.getRenterId(),
-                List.of(Booking.Status.RESERVED, Booking.Status.IN_USE)
+                List.of(Booking.Status.RESERVED, Booking.Status.IN_USE, Booking.Status.PENDING)
         );
 
-        if (hasActiveBooking) {
+        if (hasActiveBooking != null) {
             log.error("BR-16 Violation: Renter {} has an active booking", renter.getRenterId());
             throw new CustomException(
-                    "You already have an active booking. Please complete it before creating a new one (BR-16)",
+                    "You already have an active booking. Please complete it before creating a new one (BR-16) ID: " + hasActiveBooking.getBookingId(),
                     HttpStatus.BAD_REQUEST
             );
         }

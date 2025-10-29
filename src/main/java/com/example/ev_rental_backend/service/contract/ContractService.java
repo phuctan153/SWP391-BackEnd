@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface ContractService {
 
-    public ContractResponseDTO createContract(ContractRequestDTO dto);
+    public ContractResponseDTO createContract(ContractRequestDTO dto, Long staffId);
 
     public BookingContractInfoDTO getBookingInfoForContract(Long bookingId);
 
@@ -23,7 +23,7 @@ public interface ContractService {
 
     public void sendOtpToRenter(Long bookingId);
 
-    public void verifyRenterSignature(Long bookingId, String otpCode);
+    public void verifyRenterSignature(Long bookingId, Long renterId, String otpCode);
 
     public ContractResponseDTO getContractByBookingId(Long bookingId);
 }

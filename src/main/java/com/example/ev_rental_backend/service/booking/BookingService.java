@@ -22,4 +22,7 @@ public interface BookingService {
 
     public BookingResponseDto updateStatusToReserved(Long bookingId);
     public List<Booking> getBookingsWithDamages();
+
+    public List<BookingResponseDto> getMyBookings(String status);
+    public BookingResponseDto getMyBookingDetail(Long bookingId);
 }

@@ -2,17 +2,22 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
+import com.example.ev_rental_backend.dto.booking.BookingResponseDto;
 import com.example.ev_rental_backend.dto.renter.KycVerificationDTO;
 import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.mapper.RenterMapper;
 import com.example.ev_rental_backend.repository.RenterRepository;
+import com.example.ev_rental_backend.service.booking.BookingService;
 import com.example.ev_rental_backend.service.renter.RenterService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/renter")
@@ -23,6 +28,7 @@ public class RenterController {
     private final JwtTokenUtil jwtTokenUtil;
     private final RenterRepository renterRepository;
     private final RenterMapper renterMapper;
+    private final BookingService bookingService;
 
     private final RenterService renterService;
 
@@ -112,5 +118,39 @@ public class RenterController {
                             .build()
             );
         }
+    }
+
+    /**
+     * GET /api/renters/me/bookings
+     * Lấy tất cả booking của renter hiện tại đang đăng nhập
+     */
+    @GetMapping("/bookings")
+    public ResponseEntity<ApiResponse<List<BookingResponseDto>>> getMyBookings(
+            @RequestParam(required = false) String status) {
+
+        List<BookingResponseDto> bookings = bookingService.getMyBookings(status);
+
+        return ResponseEntity.ok(ApiResponse.<List<BookingResponseDto>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(bookings)
+                .build());
+    }
+
+    /**
+     * GET /api/renters/bookings/{bookingId}
+     * Lấy chi tiết 1 booking của renter
+     */
+    @GetMapping("/bookings/{bookingId}")
+    public ResponseEntity<ApiResponse<BookingResponseDto>> getMyBookingDetail(
+            @PathVariable Long bookingId) {
+
+        BookingResponseDto booking = bookingService.getMyBookingDetail(bookingId);
+
+        return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(booking)
+                .build());
     }
 }

@@ -102,7 +102,7 @@ public class RegisterController {
             String kycStatus = renterService.checkKycStatus(renter.getRenterId());
 
             // 4️⃣ Tạo DTO đăng nhập chung (staff/admin/renter đều dùng được)
-            LoginResponseDTO authResponse = new LoginResponseDTO(token, renter.getEmail(), kycStatus);
+            LoginResponseDTO authResponse = new LoginResponseDTO(token, renter.getEmail(), renter.getFullName(), kycStatus);
 
             // 5️⃣ Dữ liệu trả về cho renter — gói thêm nextStep
             Map<String, Object> responseData = new HashMap<>();
@@ -142,7 +142,7 @@ public class RegisterController {
             );
 
             // 3️⃣ Chuẩn bị phản hồi
-            LoginResponseDTO authResponse = new LoginResponseDTO(token, staff.getEmail(), staff.getStatus().name());
+            LoginResponseDTO authResponse = new LoginResponseDTO(token, staff.getEmail(), staff.getFullName(), staff.getStatus().name());
 
             ApiResponse<LoginResponseDTO> response = ApiResponse.<LoginResponseDTO>builder()
                     .status("success")
@@ -176,7 +176,7 @@ public class RegisterController {
             );
 
             // 3️⃣ Gộp thông tin trả về
-            LoginResponseDTO authResponse = new LoginResponseDTO(token, admin.getEmail(), admin.getStatus().name());
+            LoginResponseDTO authResponse = new LoginResponseDTO(token, admin.getEmail(), admin.getFullName(), admin.getStatus().name());
 
             ApiResponse<LoginResponseDTO> response = ApiResponse.<LoginResponseDTO>builder()
                     .status("success")

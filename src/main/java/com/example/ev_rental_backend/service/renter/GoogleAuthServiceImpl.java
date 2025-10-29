@@ -91,7 +91,7 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
 
 
         // 7️⃣ Tạo DTO trả về FE
-        LoginResponseDTO loginResponse = new LoginResponseDTO(token, renter.getEmail(), kycStatus);
+        LoginResponseDTO loginResponse = new LoginResponseDTO(token, renter.getEmail(), renter.getFullName(), kycStatus);
 
         Map<String, Object> data = new HashMap<>();
         data.put("user", loginResponse);

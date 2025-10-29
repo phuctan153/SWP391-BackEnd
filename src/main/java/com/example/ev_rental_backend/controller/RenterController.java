@@ -30,7 +30,6 @@ public class RenterController {
     private final JwtTokenUtil jwtTokenUtil;
     private final RenterRepository renterRepository;
     private final RenterMapper renterMapper;
-    private final BookingService bookingService;
 
     private final RenterService renterService;
 

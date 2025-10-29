@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.controller;
 
+import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.BookingContractInfoDTO;
 import com.example.ev_rental_backend.dto.contract.AdminContractSignDTO;
@@ -22,6 +23,7 @@ public class ContractController {
 
     private final TermTemplateService termTemplateService;
     private final ContractService contractService;
+    private final JwtTokenUtil jwtTokenUtil;
 
     /**
      * 📄 API: Lấy mẫu điều khoản hợp đồng (cho Staff xem trước)
@@ -55,9 +57,16 @@ public class ContractController {
      * 📝 API: Staff tạo hợp đồng mới
      */
     @PostMapping("/staff/contracts/create")
-    public ResponseEntity<ApiResponse<?>> createContract(@RequestBody ContractRequestDTO dto) {
+    public ResponseEntity<ApiResponse<?>> createContract(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody ContractRequestDTO dto) {
         try {
-            ContractResponseDTO contract = contractService.createContract(dto);
+            // 🧩 Lấy staff ID từ JWT
+            String token = authHeader.substring(7);
+            Long staffId = jwtTokenUtil.extractUserId(token);
+
+            ContractResponseDTO contract = contractService.createContract(dto, staffId);
+
             return ResponseEntity.ok(
                     ApiResponse.<ContractResponseDTO>builder()
                             .status("success")
@@ -65,6 +74,7 @@ public class ContractController {
                             .data(contract)
                             .build()
             );
+
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ApiResponse.<String>builder()
@@ -83,6 +93,7 @@ public class ContractController {
             );
         }
     }
+
 
     @PostMapping("/staff/contracts/{contractId}/send-to-admin")
     public ResponseEntity<ApiResponse<?>> sendContractToAdmin(@PathVariable Long contractId) {
@@ -226,22 +237,35 @@ public class ContractController {
         }
     }
 
-    @PostMapping("/staff/contracts/verify-sign")
-    public ResponseEntity<ApiResponse<?>> verifySign(
+    @PostMapping("/renter/contracts/verify-sign")
+    public ResponseEntity<ApiResponse<?>> verifyRenterSign(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam Long bookingId,
             @RequestParam String otpCode) {
         try {
-            contractService.verifyRenterSignature(bookingId, otpCode);
+            // 🧩 Lấy renterId từ token để xác thực
+            String token = authHeader.substring(7);
+            Long renterId = jwtTokenUtil.extractUserId(token);
+
+            contractService.verifyRenterSignature(bookingId, renterId, otpCode);
+
             return ResponseEntity.ok(ApiResponse.<String>builder()
                     .status("success")
                     .code(200)
-                    .data("Hợp đồng đã được ký thành công.")
+                    .data("✅ Hợp đồng đã được ký thành công.")
                     .build());
+
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
                     .status("error")
                     .code(400)
                     .data(e.getMessage())
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(ApiResponse.<String>builder()
+                    .status("error")
+                    .code(500)
+                    .data("Lỗi hệ thống: " + e.getMessage())
                     .build());
         }
     }

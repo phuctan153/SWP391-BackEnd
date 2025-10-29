@@ -30,17 +30,29 @@ public class ContractServiceImpl implements ContractService{
     private final NotificationService notificationService;
     private final PdfGeneratorService pdfGeneratorService;
     private final AdminRepository adminRepository;
+    private final StaffRepository staffRepository;
     private final OtpVerificationRepository otpVerificationRepository;
     private final JavaMailSender mailSender;
 
     @Transactional
-    public ContractResponseDTO createContract(ContractRequestDTO dto) {
+    public ContractResponseDTO createContract(ContractRequestDTO dto, Long staffId) {
+        // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(dto.getBookingId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy booking"));
 
+        // 🔹 2️⃣ Kiểm tra trạng thái booking
         if (booking.getStatus() != Booking.Status.RESERVED)
             throw new RuntimeException("Booking không hợp lệ để tạo hợp đồng");
 
+        // 🔹 3️⃣ Lấy staff từ DB
+        Staff staff = staffRepository.findById(staffId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên #" + staffId));
+
+        // 🔹 4️⃣ Gán staff vào booking (trước khi tạo hợp đồng)
+        booking.setStaff(staff);
+        bookingRepository.save(booking);  // ✅ Lưu lại staff ngay
+
+        // 🔹 5️⃣ Tạo hợp đồng
         Contract contract = Contract.builder()
                 .booking(booking)
                 .contractType(Contract.ContractType.valueOf(dto.getContractType().toUpperCase()))
@@ -48,10 +60,9 @@ public class ContractServiceImpl implements ContractService{
                 .status(Contract.Status.PENDING_ADMIN_SIGNATURE)
                 .build();
 
-        // 🧩 1️⃣ Lưu contract trước để có ID
         contractRepository.save(contract);
 
-        // 🧾 2️⃣ Lưu điều khoản
+        // 🔹 6️⃣ Lưu điều khoản
         for (ContractRequestDTO.TermConditionDTO t : dto.getTerms()) {
             termConditionRepository.save(
                     TermCondition.builder()
@@ -63,18 +74,21 @@ public class ContractServiceImpl implements ContractService{
             );
         }
 
-        // 📄 3️⃣ Render file HTML hoặc PDF
-        String fileUrl = pdfGeneratorService.generateContractFile(contract); // → service riêng
+        // 🔹 7️⃣ Render PDF hợp đồng
+        String fileUrl = pdfGeneratorService.generateContractFile(contract);
 
-        // 💾 4️⃣ Lưu URL vào DB
+        // 🔹 8️⃣ Lưu lại contract có file URL
         contract.setContractFileUrl(fileUrl);
         contractRepository.save(contract);
 
+        // 🔹 9️⃣ Gắn lại contract vào booking
         booking.setContract(contract);
         bookingRepository.save(booking);
 
+        // 🔹 🔟 Trả DTO phản hồi
         return mapToResponse(contract);
     }
+
 
 
     @Override
@@ -371,9 +385,16 @@ public class ContractServiceImpl implements ContractService{
 
     @Override
     @Transactional
-    public void verifyRenterSignature(Long bookingId, String otpCode) {
+    public void verifyRenterSignature(Long bookingId, Long renterId, String otpCode) {
         Contract contract = contractRepository.findByBooking_BookingId(bookingId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng của booking #" + bookingId));
+
+        Booking booking = contract.getBooking();
+
+        // 🔒 Kiểm tra quyền: renter này có phải người sở hữu booking không
+        if (!booking.getRenter().getRenterId().equals(renterId)) {
+            throw new RuntimeException("Bạn không có quyền ký hợp đồng này.");
+        }
 
         if (contract.getStatus() != Contract.Status.ADMIN_SIGNED) {
             throw new RuntimeException("Hợp đồng chưa được quản trị viên ký duyệt.");
@@ -406,15 +427,15 @@ public class ContractServiceImpl implements ContractService{
         contract.setStatus(Contract.Status.FULLY_SIGNED);
         contract.setRenterSignedAt(LocalDateTime.now());
 
-        // 🧩 Regenerate lại PDF với trạng thái FULLY_SIGNED
+        // 🧩 Regenerate lại PDF (FULLY_SIGNED)
         String newFileUrl = pdfGeneratorService.generateContractFile(contract);
         contract.setContractFileUrl(newFileUrl);
 
         contractRepository.save(contract);
 
-        Renter renter = contract.getBooking().getRenter();
+        Renter renter = booking.getRenter();
 
-        // 📧 Gửi email xác nhận ký thành công
+        // 📧 Gửi email xác nhận
         sendEmail(
                 renter.getEmail(),
                 "✅ Hợp đồng đã được ký thành công",
@@ -429,6 +450,7 @@ public class ContractServiceImpl implements ContractService{
                 """.formatted(renter.getFullName(), contract.getContractId())
         );
     }
+
 
     @Override
     public ContractResponseDTO getContractByBookingId(Long bookingId) {

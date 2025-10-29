@@ -14,4 +14,8 @@ public interface StaffStationRepository extends JpaRepository<StaffStation, Long
 
     Optional<StaffStation> findTopByStaff_StaffIdAndStatusOrderByAssignedAtDesc(
             Long staffId, StaffStation.Status status);
+
+    Optional<StaffStation> findFirstByStaff_StaffIdAndStatusOrderByAssignedAtDesc(
+            Long staffId, StaffStation.Status status
+    );
 }

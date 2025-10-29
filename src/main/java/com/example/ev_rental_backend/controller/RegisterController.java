@@ -134,20 +134,28 @@ public class RegisterController {
             // 1️⃣ Xác thực thông tin đăng nhập
             Staff staff = staffService.loginStaff(loginRequest.getEmail(), loginRequest.getPassword());
 
-            // 2️⃣ Sinh JWT token có role STAFF
+            // 2️⃣ Lấy vai trò tại trạm (RoleAtStation)
+            String roleAtStation = staffService.getCurrentRoleAtStation(staff.getStaffId());
+
+            // 3️⃣ Sinh JWT token có role STAFF
             String token = jwtTokenUtil.generateTokenWithRoleAndId(
-                    staff.getStaffId(),     // ✅ userId
-                    staff.getEmail(),        // ✅ email (subject)
-                    "STAFF"                  // ✅ role
+                    staff.getStaffId(),
+                    staff.getEmail(),
+                    "STAFF"
             );
 
-            // 3️⃣ Chuẩn bị phản hồi
-            LoginResponseDTO authResponse = new LoginResponseDTO(token, staff.getEmail(), staff.getFullName(), staff.getStatus().name());
+            // 4️⃣ Chuẩn bị phản hồi
+            Map<String, Object> data = new HashMap<>();
+            data.put("token", token);
+            data.put("email", staff.getEmail());
+            data.put("fullName", staff.getFullName());
+            data.put("status", staff.getStatus().name());
+            data.put("roleAtStation", roleAtStation); // ✅ thêm field này
 
-            ApiResponse<LoginResponseDTO> response = ApiResponse.<LoginResponseDTO>builder()
+            ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
                     .status("success")
                     .code(200)
-                    .data(authResponse)
+                    .data(data)
                     .build();
 
             return ResponseEntity.ok(response);
@@ -161,6 +169,7 @@ public class RegisterController {
             return ResponseEntity.status(401).body(errorResponse);
         }
     }
+
 
     @PostMapping("/login/admin")
     public ResponseEntity<ApiResponse<?>> loginAdmin(@Valid @RequestBody LoginRequestDTO loginRequest) {

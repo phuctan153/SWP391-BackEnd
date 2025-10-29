@@ -28,5 +28,7 @@ public interface RenterService {
     List<RenterResponseDTO> getAllRenters();
     List<RenterResponseDTO> getRentersByStatus(String status);
 
+    public RenterResponseDTO getRenterDetailById(Long renterId);
+
 
 }

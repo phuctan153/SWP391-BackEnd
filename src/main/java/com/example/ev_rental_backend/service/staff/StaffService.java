@@ -11,4 +11,6 @@ public interface StaffService {
 
     public List<StaffListDTO> getStaffByStation(Long stationId);
     public StaffDetailDTO getStaffDetail(Long staffId);
+
+    public String getCurrentRoleAtStation(Long staffId);
 }

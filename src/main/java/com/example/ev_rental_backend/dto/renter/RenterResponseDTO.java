@@ -34,6 +34,24 @@ public class RenterResponseDTO {
     private String kycStatus;       // VERIFIED / WAITING_APPROVAL / NEED_UPLOAD / REJECTED
     private String nextStep;        // EMAIL_OTP / KYC / DASHBOARD
 
+    // ✅ Giấy tờ tuỳ thân
+    private IdentityDocDTO cccd;
+    private IdentityDocDTO gplx;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class IdentityDocDTO {
+        private String documentNumber;
+        private String fullName;
+        private String type;          // CCCD / GPLX
+        private String status;        // VERIFIED / PENDING / REJECTED
+        private LocalDate issueDate;
+        private LocalDate expiryDate;
+        private LocalDateTime verifiedAt;
+    }
 }

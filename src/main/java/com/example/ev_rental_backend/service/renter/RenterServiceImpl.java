@@ -417,6 +417,37 @@ public class RenterServiceImpl implements RenterService{
         renterRepository.save(renter);
     }
 
+    @Override
+    public RenterResponseDTO getRenterDetailById(Long renterId) {
+        Renter renter = renterRepository.findById(renterId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người thuê có ID: " + renterId));
+
+        RenterResponseDTO dto = renterMapper.toResponseDto(renter);
+
+        List<IdentityDocument> docs = identityDocumentRepository.findByRenter(renter);
+        for (IdentityDocument doc : docs) {
+            RenterResponseDTO.IdentityDocDTO docDTO = RenterResponseDTO.IdentityDocDTO.builder()
+                    .documentNumber(doc.getDocumentNumber())
+                    .fullName(doc.getFullName())
+                    .type(doc.getType().name())
+                    .status(doc.getStatus().name())
+                    .issueDate(doc.getIssueDate())
+                    .expiryDate(doc.getExpiryDate())
+                    .verifiedAt(doc.getVerifiedAt())
+                    .build();
+
+            if (doc.getType() == IdentityDocument.DocumentType.NATIONAL_ID) {
+                dto.setCccd(docDTO);
+            } else if (doc.getType() == IdentityDocument.DocumentType.DRIVER_LICENSE) {
+                dto.setGplx(docDTO);
+            }
+        }
+
+        dto.setKycStatus(getKycStatusForRenter(renter));
+        return dto;
+    }
+
+
     private String normalize(String input) {
         if (input == null) return "";
         return Normalizer.normalize(input, Normalizer.Form.NFD)
@@ -425,4 +456,5 @@ public class RenterServiceImpl implements RenterService{
                 .toLowerCase(Locale.ROOT)
                 .trim();
     }
+
 }

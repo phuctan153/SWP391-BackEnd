@@ -6,8 +6,10 @@ import com.example.ev_rental_backend.dto.staff.StaffListDTO;
 import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.entity.BookingRating;
 import com.example.ev_rental_backend.entity.Staff;
+import com.example.ev_rental_backend.entity.StaffStation;
 import com.example.ev_rental_backend.repository.BookingRepository;
 import com.example.ev_rental_backend.repository.StaffRepository;
+import com.example.ev_rental_backend.repository.StaffStationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,9 @@ public class StaffServiceImpl implements StaffService {
 
     @Autowired
     StaffRepository staffRepository;
+
+    @Autowired
+    StaffStationRepository staffStationRepository;
 
     @Autowired
     BookingRepository bookingRepository;
@@ -83,6 +88,14 @@ public class StaffServiceImpl implements StaffService {
                 .totalCompleted(completedBookings.size())
                 .averageRating(avgRating)
                 .build();
+    }
+
+    @Override
+    public String getCurrentRoleAtStation(Long staffId) {
+        return staffStationRepository.findFirstByStaff_StaffIdAndStatusOrderByAssignedAtDesc(
+                        staffId, StaffStation.Status.ACTIVE
+                ).map(staffStation -> staffStation.getRoleAtStation().name())
+                .orElse("UNKNOWN");
     }
 
 }

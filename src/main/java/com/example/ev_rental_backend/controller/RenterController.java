@@ -5,8 +5,10 @@ import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.BookingResponseDto;
 import com.example.ev_rental_backend.dto.renter.KycVerificationDTO;
 import com.example.ev_rental_backend.dto.renter.RenterResponseDTO;
+import com.example.ev_rental_backend.entity.IdentityDocument;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.mapper.RenterMapper;
+import com.example.ev_rental_backend.repository.IdentityDocumentRepository;
 import com.example.ev_rental_backend.repository.RenterRepository;
 import com.example.ev_rental_backend.service.booking.BookingService;
 import com.example.ev_rental_backend.service.renter.RenterService;
@@ -30,6 +32,8 @@ public class RenterController {
     private final JwtTokenUtil jwtTokenUtil;
     private final RenterRepository renterRepository;
     private final RenterMapper renterMapper;
+    private final BookingService bookingService;
+    private final IdentityDocumentRepository identityDocumentRepository;
 
     private final RenterService renterService;
 
@@ -37,7 +41,6 @@ public class RenterController {
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<?>> getProfile(HttpServletRequest request) {
         try {
-            // 🔹 Lấy header Authorization
             String authHeader = request.getHeader("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 return ResponseEntity.status(403).body(
@@ -49,21 +52,37 @@ public class RenterController {
                 );
             }
 
-            // 🔹 Cắt "Bearer " để lấy token thật
             String token = authHeader.substring(7);
-
-            // 🔹 Trích xuất email từ token
             String email = jwtTokenUtil.extractEmail(token);
 
-            // 🔹 Tìm renter trong database
             Renter renter = renterRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người thuê"));
 
-            // 🔹 Map sang DTO phản hồi
             RenterResponseDTO responseDTO = renterMapper.toResponseDto(renter);
             responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
 
+            // ✅ Lấy CCCD và GPLX của renter
+            List<IdentityDocument> docs = identityDocumentRepository.findByRenter(renter);
+            for (IdentityDocument doc : docs) {
+                RenterResponseDTO.IdentityDocDTO docDTO = RenterResponseDTO.IdentityDocDTO.builder()
+                        .documentNumber(doc.getDocumentNumber())
+                        .fullName(doc.getFullName())
+                        .type(doc.getType().name())
+                        .status(doc.getStatus().name())
+                        .issueDate(doc.getIssueDate())
+                        .expiryDate(doc.getExpiryDate())
+                        .verifiedAt(doc.getVerifiedAt())
+                        .build();
+
+                if (doc.getType() == IdentityDocument.DocumentType.NATIONAL_ID) {
+                    responseDTO.setCccd(docDTO);
+                } else if (doc.getType() == IdentityDocument.DocumentType.DRIVER_LICENSE) {
+                    responseDTO.setGplx(docDTO);
+                }
+            }
+
             responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
+
             return ResponseEntity.ok(ApiResponse.builder()
                     .status("success")
                     .code(200)
@@ -80,6 +99,7 @@ public class RenterController {
             );
         }
     }
+
 
     @PostMapping("/verify-kyc")
     public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody @Valid KycVerificationDTO dto) {

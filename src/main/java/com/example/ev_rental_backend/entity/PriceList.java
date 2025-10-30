@@ -21,7 +21,7 @@ public class PriceList {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "price_type", nullable = false)
-    private PriceType priceType; // SPARE_PART, DEPOSIT, OTHER
+    private PriceType priceType; // SPARE_PART, OTHER
 
     @Column(name = "item_name", length = 100)
     private String itemName;
@@ -41,7 +41,6 @@ public class PriceList {
 
     public enum PriceType {
         SPARE_PART,
-        DEPOSIT,
         OTHER
     }
 }

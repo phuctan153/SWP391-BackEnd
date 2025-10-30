@@ -4,6 +4,7 @@ import com.example.ev_rental_backend.entity.StaffStation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -14,4 +15,14 @@ public interface StaffStationRepository extends JpaRepository<StaffStation, Long
 
     Optional<StaffStation> findTopByStaff_StaffIdAndStatusOrderByAssignedAtDesc(
             Long staffId, StaffStation.Status status);
+
+    Optional<StaffStation> findFirstByStaff_StaffIdAndStatusOrderByAssignedAtDesc(
+            Long staffId, StaffStation.Status status
+    );
+
+    List<StaffStation> findByStation_StationIdAndRoleAtStationAndStatus(
+            Long stationId,
+            StaffStation.RoleAtStation roleAtStation,
+            StaffStation.Status status
+    );
 }

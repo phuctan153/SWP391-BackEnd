@@ -2,7 +2,9 @@ package com.example.ev_rental_backend.service.notification;
 
 import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.entity.Notification;
+import com.example.ev_rental_backend.entity.StaffStation;
 import com.example.ev_rental_backend.repository.NotificationRepository;
+import com.example.ev_rental_backend.repository.StaffStationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ import java.util.List;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final StaffStationRepository staffStationRepository;
+
 
     @Override
     public List<Notification> getAllNotificationsForAdmin(Long adminId) {
@@ -32,7 +36,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public Notification sendNotificationToAdmin(Long adminId, String title, String message) {
+    public void sendNotificationToAdmin(Long adminId, String title, String message) {
         Notification notification = Notification.builder()
                 .recipientType(Notification.RecipientType.ADMIN)
                 .recipientId(adminId)
@@ -40,7 +44,59 @@ public class NotificationServiceImpl implements NotificationService {
                 .message(message)
                 .isRead(false)
                 .build();
-        return notificationRepository.save(notification);
+        notificationRepository.save(notification);
+    }
+
+    @Override
+    public void notifyStationAdminsToCreateContract(Booking booking) {
+        if (booking.getVehicle() == null || booking.getVehicle().getStation() == null) {
+            throw new RuntimeException("Booking không chứa thông tin trạm xe hợp lệ");
+        }
+
+        Long stationId = booking.getVehicle().getStation().getStationId();
+
+        // 🧭 Lấy danh sách Staff_Admin đang hoạt động tại trạm này
+        List<StaffStation> staffAdmins = staffStationRepository
+                .findByStation_StationIdAndRoleAtStationAndStatus(
+                        stationId,
+                        StaffStation.RoleAtStation.STATION_ADMIN,
+                        StaffStation.Status.ACTIVE
+                );
+
+        if (staffAdmins.isEmpty()) {
+            System.out.printf("⚠️ Không có Staff_Admin nào đang hoạt động ở station #%d%n", stationId);
+            return;
+        }
+
+        // 🔔 Gửi thông báo
+        for (StaffStation ss : staffAdmins) {
+            sendNotificationToStaff(
+                    ss.getStaff().getStaffId(),
+                    "📄 Tạo hợp đồng cho booking #" + booking.getBookingId(),
+                    String.format(
+                            "Xe '%s' tại trạm '%s' đã được admin duyệt — vui lòng tạo hợp đồng.",
+                            booking.getVehicle().getVehicleName(),
+                            booking.getVehicle().getStation().getName()
+                    )
+            );
+        }
+
+        System.out.printf("✅ Đã gửi thông báo đến %d Staff_Admin tại station #%d%n",
+                staffAdmins.size(), stationId);
+    }
+
+    @Override
+    public void sendNotificationToStaff(Long staffId, String title, String message) {
+        Notification notification = Notification.builder()
+                .recipientType(Notification.RecipientType.STAFF)
+                .recipientId(staffId)
+                .title(title)
+                .message(message)
+                .isRead(false)
+                .build();
+
+        notificationRepository.save(notification);
+        log.info("📨 Notification sent to Staff #{}: {}", staffId, title);
     }
 
     /**

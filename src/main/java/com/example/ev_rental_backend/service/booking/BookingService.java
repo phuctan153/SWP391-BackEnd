@@ -9,6 +9,8 @@ import java.util.List;
 public interface BookingService {
     public BookingResponseDto createBooking(CreateBookingRequestDto requestDto);
     public BookingResponseDto getBookingById(Long bookingId);
+
+    public Booking getBookingEntityById(Long bookingId);
     public BookingResponseDto cancelBooking(Long bookingId, CancelBookingRequestDto requestDto);
     public BookingImageResponseDto uploadBookingImage(Long bookingId, MultipartFile file,
                                                       String imageTypeStr, String description);
@@ -25,4 +27,9 @@ public interface BookingService {
 
     public List<BookingResponseDto> getMyBookings(String status);
     public BookingResponseDto getMyBookingDetail(Long bookingId);
+
+    public void sendCancellationEmailToRenter(Long bookingId);
+
+    List<BookingWithContractDTO> getBookingsWithContractsByActiveStation(Long staffId);
+
 }

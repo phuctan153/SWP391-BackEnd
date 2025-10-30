@@ -16,5 +16,9 @@ public interface NotificationService {
     public List<Notification> getAllNotificationsForAdmin(Long adminId);
     public void markAsRead(Long notificationId);
 
-    Notification sendNotificationToAdmin(Long adminId, String title, String message);
+    public void sendNotificationToAdmin(Long adminId, String title, String message);
+
+    public void notifyStationAdminsToCreateContract(Booking booking);
+
+    public void sendNotificationToStaff(Long staffId, String title, String message);
 }

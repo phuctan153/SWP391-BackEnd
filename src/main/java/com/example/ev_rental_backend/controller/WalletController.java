@@ -1,16 +1,21 @@
 package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
+import com.example.ev_rental_backend.dto.wallet.RefundByBookingRequestDTO;
 import com.example.ev_rental_backend.entity.PaymentTransaction;
 import com.example.ev_rental_backend.entity.Wallet;
 import com.example.ev_rental_backend.service.wallet.WalletService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/wallet")
@@ -117,4 +122,48 @@ public class WalletController {
                 .message("Lấy lịch sử giao dịch của ví #" + id + " thành công")
                 .build());
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/refund/admin-cancel/{bookingId}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> refundDepositByBooking(
+            @PathVariable Long bookingId) {
+
+        Wallet wallet = walletService.refundDepositWhenAdminCancels(bookingId);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("bookingId", bookingId);
+        data.put("newBalance", wallet.getBalance());
+        data.put("message", String.format(
+                "Hoàn tiền đặt cọc thành công cho booking #%d theo chính sách doanh nghiệp.",
+                bookingId
+        ));
+
+        return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(data)
+                .build());
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/refund/renter-cancel/{bookingId}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> refundDepositByRenter(@PathVariable Long bookingId) {
+        Wallet wallet = walletService.refundDepositWhenRenterCancels(bookingId);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("bookingId", bookingId);
+        data.put("newBalance", wallet.getBalance());
+        data.put("message", String.format(
+                "Hoàn tiền đặt cọc thành công cho renter từ booking #%d theo chính sách doanh nghiệp (hủy bởi renter).",
+                bookingId
+        ));
+
+        return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(data)
+                .build());
+    }
+
+
 }

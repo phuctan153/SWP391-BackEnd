@@ -15,6 +15,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * Tìm booking theo trạng thái
      */
     List<Booking> findByStatus(Booking.Status status);
+
+    List<Booking> findByVehicle_Station_StationId(Long stationId);
+
     /**
      * Tìm booking theo renter
      */

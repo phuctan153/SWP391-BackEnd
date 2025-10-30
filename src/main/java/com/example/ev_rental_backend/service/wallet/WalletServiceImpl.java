@@ -17,6 +17,8 @@ public class WalletServiceImpl implements WalletService {
     private final WalletRepository walletRepository;
     private final RenterRepository renterRepository;
     private final PaymentTransactionRepository transactionRepository;
+    private final BookingRepository bookingRepository;
+    private final PolicyRepository policyRepository;
 
     @Override
     public List<Wallet> getAllWallets() {
@@ -120,23 +122,88 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
-    public Wallet refundDepositFromPriceList(Long bookingId) {
-        // Ví dụ giả lập refund
-        Wallet wallet = walletRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví để hoàn tiền."));
+    public Wallet refundDepositWhenAdminCancels(Long bookingId) {
+        // 🔹 Lấy booking
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
 
-        BigDecimal refundAmount = new BigDecimal("50000");
+        Renter renter = booking.getRenter();
+        Wallet wallet = walletRepository.findByRenter(renter)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của renter #" + renter.getRenterId()));
+
+        if (wallet.getStatus() == Wallet.Status.INACTIVE) {
+            throw new RuntimeException("Ví đang bị vô hiệu hóa, không thể hoàn tiền.");
+        }
+
+        // 🔹 Lấy chính sách doanh nghiệp
+        Policy policy = policyRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách doanh nghiệp"));
+
+        double refundPercent = policy.getRefundPercentAdmin(); // 🟢 Admin hoàn theo % trong Policy
+        double depositAmount = policy.getDepositAmount();
+
+        BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
+
+        // 🔹 Cập nhật ví
         wallet.setBalance(wallet.getBalance().add(refundAmount));
 
+        // 🔹 Ghi nhận giao dịch hoàn tiền
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .wallet(wallet)
                 .amount(refundAmount)
                 .transactionTime(LocalDateTime.now())
-                .status(PaymentTransaction.Status.SUCCESS)
                 .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
+                .status(PaymentTransaction.Status.SUCCESS)
                 .build();
 
         transactionRepository.save(transaction);
-        return walletRepository.save(wallet);
+        walletRepository.save(wallet);
+
+        return wallet;
     }
+
+    @Override
+    @Transactional
+    public Wallet refundDepositWhenRenterCancels(Long bookingId) {
+        // 🔹 Lấy booking
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
+
+        Renter renter = booking.getRenter();
+        Wallet wallet = walletRepository.findByRenter(renter)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của renter #" + renter.getRenterId()));
+
+        if (wallet.getStatus() == Wallet.Status.INACTIVE) {
+            throw new RuntimeException("Ví đang bị vô hiệu hóa, không thể hoàn tiền.");
+        }
+
+        // 🔹 Lấy policy hiện tại
+        Policy policy = policyRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách doanh nghiệp"));
+
+        double refundPercent = policy.getRefundPercentRenter(); // 🟢 refund theo phần trăm cho renter
+        double depositAmount = policy.getDepositAmount();
+
+        BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
+
+        // 🔹 Cập nhật ví
+        wallet.setBalance(wallet.getBalance().add(refundAmount));
+
+        // 🔹 Ghi nhận giao dịch hoàn tiền
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .wallet(wallet)
+                .amount(refundAmount)
+                .transactionTime(LocalDateTime.now())
+                .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .build();
+
+        transactionRepository.save(transaction);
+        walletRepository.save(wallet);
+
+        return wallet;
+    }
+
+
+
 }

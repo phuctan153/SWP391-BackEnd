@@ -22,5 +22,7 @@ public interface WalletService {
     Wallet restoreWallet(Long id);
 
     List<PaymentTransaction> getTransactionsByWalletId(Long walletId);
-    Wallet refundDepositFromPriceList(Long bookingId);
+    Wallet refundDepositWhenAdminCancels(Long bookingId);
+
+    Wallet refundDepositWhenRenterCancels(Long bookingId);
 }

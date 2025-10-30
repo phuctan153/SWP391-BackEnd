@@ -1,17 +1,27 @@
 package com.example.ev_rental_backend.controller;
 
+import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.*;
+import com.example.ev_rental_backend.entity.Admin;
+import com.example.ev_rental_backend.entity.Booking;
+import com.example.ev_rental_backend.repository.AdminRepository;
 import com.example.ev_rental_backend.service.booking.BookingService;
+import com.example.ev_rental_backend.service.notification.NotificationService;
+import com.example.ev_rental_backend.service.policy.PolicyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -19,6 +29,10 @@ import java.util.List;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final JwtTokenUtil jwtTokenUtil;
+    private final NotificationService notificationService;
+    private final AdminRepository adminRepository;
+    private final PolicyService policyService;
 
     // ==================== 5.1. Booking Creation ====================
 
@@ -63,12 +77,107 @@ public class BookingController {
             @PathVariable Long bookingId,
             @RequestBody(required = false) CancelBookingRequestDto requestDto) {
         BookingResponseDto booking = bookingService.cancelBooking(bookingId, requestDto);
+
+        //thêm phần gửi email khi ADMIN từ chối booking
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().contains("ADMIN"))){
+            //gửi email cho renter
+            bookingService.sendCancellationEmailToRenter(bookingId);
+
+            //thông báo hoàn tiền cọc cho admin
+            Long adminId = jwtTokenUtil.extractUserId(
+                    auth.getCredentials().toString()); // hoặc token từ Header nếu bạn lưu JWT ở đây
+            notificationService.sendNotificationToAdmin(
+                    adminId,
+                    "💰 Hoàn cọc sau khi hủy booking",
+                    String.format("Bạn đã hủy booking #%d — cần hoàn tiền đặt cọc cho renter.",
+                            bookingId)
+            );
+        }
+        else if (auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().contains("RENTER"))) {
+
+            double refundPercent = policyService.getRefundPercentForRenter();
+
+            //gửi thông báo cho admin kích hoạt hoàn tiền
+            Admin admin = adminRepository.findFirstByStatus(Admin.Status.ACTIVE)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy admin đang hoạt động"));
+            notificationService.sendNotificationToAdmin(
+                    admin.getGlobalAdminId(),
+                    "📩 Renter hủy đặt xe",
+                    String.format(
+                            "Renter đã hủy booking #%d — cần hoàn %.0f%% tiền cọc theo chính sách doanh nghiệp.",
+                            bookingId, refundPercent
+                    )
+            );
+        }
+
         return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(booking)
                 .build());
     }
+
+    /**
+     * GET /api/bookings/{bookingId}/confirm-cancel - Xác nhận trước khi hủy booking
+     * Hiển thị phần trăm hoàn tiền theo chính sách doanh nghiệp
+     */
+    @GetMapping("/{bookingId}/confirm-cancel")
+    @PreAuthorize("hasRole('RENTER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> confirmCancelBooking(@PathVariable Long bookingId) {
+        // ✅ Lấy phần trăm hoàn tiền từ policy
+        double refundPercent = policyService.getRefundPercentForRenter();
+
+        // ✅ Có thể mở rộng: lấy thêm thông tin tiền cọc từ Policy hoặc PriceList
+        double depositAmount = policyService.getDepositAmountForBooking(bookingId);
+
+        Map<String, Object> data = getStringObjectMap(bookingId, depositAmount, refundPercent);
+
+        return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(data)
+                .build());
+    }
+
+    private static Map<String, Object> getStringObjectMap(Long bookingId, double depositAmount, double refundPercent) {
+        double refundAmount = depositAmount * (refundPercent / 100.0);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("bookingId", bookingId);
+        data.put("refundPercent", refundPercent);
+        data.put("depositAmount", depositAmount);
+        data.put("refundAmount", refundAmount);
+        data.put("message", String.format(
+                "Nếu bạn hủy booking, hệ thống sẽ hoàn %.0f%% tiền cọc (≈ %.0f VND) theo chính sách hiện tại.",
+                refundPercent, refundAmount
+        ));
+        return data;
+    }
+
+    /**
+     * GET /api/bookings/station/contracts
+     * Lấy danh sách booking theo trạm mà staff đang hoạt động, kèm thông tin hợp đồng
+     */
+    @GetMapping("/station/contracts")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<List<BookingWithContractDTO>>> getBookingsWithContractsByActiveStation(
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = authHeader.substring(7);
+        Long staffId = jwtTokenUtil.extractUserId(token);
+
+        List<BookingWithContractDTO> bookings = bookingService.getBookingsWithContractsByActiveStation(staffId);
+
+        return ResponseEntity.ok(ApiResponse.<List<BookingWithContractDTO>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .message("Danh sách booking và hợp đồng tại trạm bạn đang hoạt động")
+                .data(bookings)
+                .build());
+    }
+
 
     // ==================== 5.2. Booking Images ====================
 
@@ -142,11 +251,15 @@ public class BookingController {
                 .build());
     }
 
+
+    //admin đồng ý cho thuê
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{bookingId}/status/reserved")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponseDto>> updateStatusToReserved(
             @PathVariable Long bookingId) {
         BookingResponseDto booking = bookingService.updateStatusToReserved(bookingId);
+        Booking bookingEntity = bookingService.getBookingEntityById(bookingId);
+        notificationService.notifyStationAdminsToCreateContract(bookingEntity);
         return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())

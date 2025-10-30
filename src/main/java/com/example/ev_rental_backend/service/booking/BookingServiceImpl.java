@@ -12,6 +12,8 @@ import com.example.ev_rental_backend.repository.BookingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,6 +42,8 @@ public class BookingServiceImpl implements BookingService {
     private final BookingBusinessRuleValidator validator;
     private final FileStorageService fileStorageService;
     private final NotificationServiceImpl notificationService;
+    private final JavaMailSender mailSender;
+    private final StaffStationRepository staffStationRepository;
 
     // ==================== 5.1. Booking Creation ====================
     @Override
@@ -89,6 +94,108 @@ public class BookingServiceImpl implements BookingService {
 
         return mapToResponseDto(booking);
     }
+
+    @Override
+    public void sendCancellationEmailToRenter(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking ID: " + bookingId));
+
+        try {
+            log.info("🟢 Bắt đầu gửi mail hủy booking ID {}", bookingId);
+
+            String renterEmail = booking.getRenter().getEmail();
+            String renterName = booking.getRenter().getFullName();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+            String start = booking.getStartDateTime() != null
+                    ? booking.getStartDateTime().format(formatter)
+                    : "Không xác định";
+            String end = booking.getEndDateTime() != null
+                    ? booking.getEndDateTime().format(formatter)
+                    : "Không xác định";
+
+            String vehicleInfo = booking.getVehicle() != null
+                    ? booking.getVehicle().getVehicleName() + " - " + booking.getVehicle().getPlateNumber()
+                    : "Không có thông tin xe";
+
+            String subject = "EV Rental - Đơn thuê #" + booking.getBookingId() + " đã bị hủy bởi Quản trị viên";
+
+            String body = """
+                Xin chào %s,
+
+                Đơn thuê xe #%d của bạn đã bị hủy bởi Quản trị viên hệ thống.
+
+                Xe: %s
+                Thời gian thuê: %s → %s
+                Tổng tiền: %.2f VNĐ
+                Trạng thái cọc: %s
+
+                Trân trọng,
+                EV Rental System
+                """.formatted(
+                    renterName,
+                    booking.getBookingId(),
+                    vehicleInfo,
+                    start,
+                    end,
+                    booking.getTotalAmount() != null ? booking.getTotalAmount() : 0.0,
+                    booking.getDepositStatus() != null ? booking.getDepositStatus().name() : "PENDING"
+            );
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(renterEmail);
+            message.setSubject(subject);
+            message.setText(body);
+
+            mailSender.send(message);
+
+            log.info("✅ Email hủy booking ID {} đã gửi tới {}", bookingId, renterEmail);
+
+        } catch (Exception e) {
+            log.error("❌ Gửi email thất bại: {}", e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public List<BookingWithContractDTO> getBookingsWithContractsByActiveStation(Long staffId) {
+        // 1️⃣ Lấy trạm mà staff đang hoạt động
+        StaffStation staffStation = staffStationRepository
+                .findFirstByStaff_StaffIdAndStatusOrderByAssignedAtDesc(staffId, StaffStation.Status.ACTIVE)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy trạm hoạt động cho staff #" + staffId));
+
+        Long stationId = staffStation.getStation().getStationId();
+
+        // 2️⃣ Lấy danh sách booking tại trạm đó
+        List<Booking> bookings = bookingRepository.findByVehicle_Station_StationId(stationId);
+
+        // 3️⃣ Map sang DTO có kèm thông tin hợp đồng
+        return bookings.stream().map(booking -> {
+            Contract contract = booking.getContract(); // Quan hệ OneToOne giữa Booking – Contract
+
+            return BookingWithContractDTO.builder()
+                    .bookingId(booking.getBookingId())
+                    .vehicleName(booking.getVehicle().getVehicleName())
+                    .stationName(booking.getVehicle().getStation().getName())
+                    .renterName(booking.getRenter().getFullName())
+                    .bookingStatus(booking.getStatus().name())
+                    .startDateTime(booking.getStartDateTime())
+                    .endDateTime(booking.getEndDateTime())
+                    .contractId(contract != null ? contract.getContractId() : null)
+                    .contractStatus(contract != null ? contract.getStatus().name() : "NOT_CREATED")
+                    .contractFileUrl(contract != null ? contract.getContractFileUrl() : null)
+                    .renterSignedAt(contract != null ? contract.getRenterSignedAt() : null)
+                    .staffSignedAt(contract != null ? contract.getAdminSignedAt() : null)
+                    .build();
+        }).toList();
+    }
+
+    @Override
+    public Booking getBookingEntityById(Long bookingId) {
+        return bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
+    }
+
 
     /**
      * Tạo booking mới (BR-05, BR-06, BR-07, BR-16, BR-22)

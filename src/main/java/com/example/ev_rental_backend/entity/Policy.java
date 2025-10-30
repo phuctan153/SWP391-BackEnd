@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "policy")
 @Data
@@ -44,4 +46,36 @@ public class Policy {
     // 🔸 Tiền cọc
     @Column(name = "deposit_amount", nullable = false)
     private Double depositAmount;
+
+    // ✅ Cho phép nhiều policy hoạt động song song
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private Status status;
+
+    // ✅ Có thể gắn policy này cho loại xe hoặc trạm trong tương lai
+    @Column(name = "applied_scope", length = 50)
+    private String appliedScope; // VD: "GLOBAL", "STATION", "VEHICLE_TYPE"
+
+    // ✅ Ngày tạo & cập nhật
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.status = (this.status == null) ? Status.ACTIVE : this.status;
+    }
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 }

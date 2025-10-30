@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.List;
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class RenterController {
 
+    private final BookingService bookingService;
     private final JwtTokenUtil jwtTokenUtil;
     private final RenterRepository renterRepository;
     private final RenterMapper renterMapper;
@@ -57,6 +59,7 @@ public class RenterController {
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người thuê"));
 
             RenterResponseDTO responseDTO = renterMapper.toResponseDto(renter);
+            responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
 
             // ✅ Lấy CCCD và GPLX của renter
             List<IdentityDocument> docs = identityDocumentRepository.findByRenter(renter);

@@ -541,6 +541,52 @@ public class BookingServiceImpl implements BookingService {
         return mapToRatingResponseDto(booking.getBookingRating());
     }
 
+    /**
+     * Lấy tất cả booking của renter hiện tại
+     */
+    public List<BookingResponseDto> getMyBookings(String status) {
+        // Lấy renter hiện tại
+        Renter renter = getCurrentRenter();
+
+        List<Booking> bookings;
+
+        if (status != null && !status.isEmpty()) {
+            // Filter theo status
+            try {
+                Booking.Status bookingStatus = Booking.Status.valueOf(status.toUpperCase());
+                bookings = bookingRepository.findByRenterAndStatus(renter, bookingStatus);
+            } catch (IllegalArgumentException e) {
+                throw new CustomException("Invalid status: " + status, HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            // Lấy tất cả
+            bookings = bookingRepository.findByRenter(renter);
+        }
+
+        // Sắp xếp theo thời gian tạo (mới nhất trước)
+        bookings.sort((b1, b2) -> b2.getCreatedAt().compareTo(b1.getCreatedAt()));
+
+        return bookings.stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Lấy chi tiết 1 booking của renter hiện tại
+     */
+    public BookingResponseDto getMyBookingDetail(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
+
+        // Kiểm tra booking thuộc về renter hiện tại
+        Renter currentRenter = getCurrentRenter();
+        if (!booking.getRenter().getRenterId().equals(currentRenter.getRenterId())) {
+            throw new CustomException("Access denied", HttpStatus.FORBIDDEN);
+        }
+
+        return mapToResponseDto(booking);
+    }
+
     // ==================== Helper Methods ====================
 
     private Renter getCurrentRenter() {

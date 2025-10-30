@@ -27,13 +27,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     // Kiểm tra xem renter có ít nhất 1 booking active không
     boolean existsByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
+    Booking findByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
 
     /**
      * Tìm booking theo vehicle ID
      */
     List<Booking> findByVehicle_VehicleId(Long vehicleId);
-
-    List<Booking> findByRenterAndStatus(Renter renter, Booking.Status bookingStatus);
 
     List<Booking> findByRenterOrderByCreatedAtDesc(Renter renter);
 
@@ -129,4 +128,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT b FROM Booking b WHERE b.status = 'IN_USE' " +
             "AND DATE(b.endDateTime) = DATE(:today)")
     List<Booking> findBookingsDueToday(@Param("today") LocalDateTime today);
+
+    List<Booking> findByRenterAndStatus(Renter renter, Booking.Status bookingStatus);
 }

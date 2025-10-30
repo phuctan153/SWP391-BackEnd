@@ -52,9 +52,9 @@ public class SecurityConfig {
                                 "/api/payments/**", // tạm thời public để test xe (sẽ đổi lại sau)
                                 "/api/invoices/**"
                         ).permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
-                        .requestMatchers("/api/staff/**").hasAnyAuthority("STAFF", "ADMIN")
-                        .requestMatchers("/api/renter/**").hasAuthority("RENTER")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
+                        .requestMatchers("/api/renter/**").hasRole("RENTER")
                         .anyRequest().authenticated()
                 )
 

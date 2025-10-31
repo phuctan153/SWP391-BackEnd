@@ -19,7 +19,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/wallet")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 @RequiredArgsConstructor
 public class WalletController {
 

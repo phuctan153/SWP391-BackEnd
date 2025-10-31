@@ -19,7 +19,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOrigins(
-                        "http://localhost:3000",
+                        "https://swp-391-frontend-mu.vercel.app",
                         "https://localhost:3000",
                         "http://localhost:8080",
                         "https://nonpending-lelia-ballistically.ngrok-free.dev"

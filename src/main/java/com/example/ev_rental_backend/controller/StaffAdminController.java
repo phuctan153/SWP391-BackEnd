@@ -13,7 +13,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/stations")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 public class StaffAdminController {
     private final StaffService staffService;
 

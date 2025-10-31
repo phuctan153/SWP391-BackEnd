@@ -62,7 +62,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth -> oauth
                         .loginPage("/api/auth/google") // custom login URL
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                        .defaultSuccessUrl("http://localhost:3000/homepage", true)
+                        .defaultSuccessUrl("https://swp-391-frontend-mu.vercel.app/homepage", true)
                 )
 
                 // ✅ JWT Filter
@@ -73,7 +73,7 @@ public class SecurityConfig {
 
                 // ✅ Logout
                 .logout(logout -> logout
-                        .logoutSuccessUrl("http://localhost:3000/login")
+                        .logoutSuccessUrl("https://swp-391-frontend-mu.vercel.app/login")
                         .permitAll()
                 );
 
@@ -85,7 +85,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("https://nonpending-lelia-ballistically.ngrok-free.dev",
-                "http://localhost:3000",
+                "https://swp-391-frontend-mu.vercel.app",
                 "http://localhost:8080"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));

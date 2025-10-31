@@ -29,7 +29,7 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
-@CrossOrigin(origins ={"http://localhost:3000", "http://localhost:8080", "https://nonpending-lelia-ballistically.ngrok-free.dev"}, allowCredentials = "true")
+@CrossOrigin(origins ={"https://swp-391-frontend-mu.vercel.app", "http://localhost:8080", "https://nonpending-lelia-ballistically.ngrok-free.dev"}, allowCredentials = "true")
 public class RegisterController {
 
     @Autowired

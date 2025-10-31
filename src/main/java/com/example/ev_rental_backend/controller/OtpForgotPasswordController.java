@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth/forgot-password")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 public class OtpForgotPasswordController {
 
     private final OtpForgotPasswordService otpForgotPasswordService;

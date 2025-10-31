@@ -128,7 +128,7 @@ public class MomoPaymentController {
         log.info("MoMo callback - OrderId: {}, ResultCode: {}", orderId, resultCode);
 
         // Có thể redirect về frontend với thông tin thanh toán
-        String frontendUrl = "http://localhost:3000/payment-result";
+        String frontendUrl = "https://swp-391-frontend-mu.vercel.app/payment-result";
         String redirectUrl = String.format(
                 "%s?orderId=%s&resultCode=%d&message=%s",
                 frontendUrl, orderId, resultCode, message

@@ -16,7 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/vehicle-models")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 public class VehicleModelController {
 
     private final VehicleModelService vehicleModelService;

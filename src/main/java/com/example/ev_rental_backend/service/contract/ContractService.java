@@ -26,4 +26,6 @@ public interface ContractService {
     public void verifyRenterSignature(Long bookingId, Long renterId, String otpCode);
 
     public ContractResponseDTO getContractByBookingId(Long bookingId);
+
+    public ContractResponseDTO getContractById(Long contractId);
 }

@@ -10,13 +10,20 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // ✅ Cấu hình đường dẫn tới thư mục uploads
         String uploadPath = System.getProperty("user.dir") + "/uploads/";
         System.out.println("Serving static files from: " + uploadPath);
 
-        registry.addResourceHandler("/files/**")
-                .addResourceLocations("file:" + uploadPath)
+        // ✅ Chỉ public ảnh phương tiện, avatar
+        registry.addResourceHandler("/files/images/**")
+                .addResourceLocations("file:" + uploadPath + "images/")
                 .setCachePeriod(0);
+
+        registry.addResourceHandler("/files/vehicles/**")
+                .addResourceLocations("file:" + uploadPath + "vehicles/")
+                .setCachePeriod(0);
+
+        // 🚫 KHÔNG public hợp đồng để tránh lộ file PDF
+        // /files/contracts/** sẽ được bảo vệ qua API có JWT
     }
 
     @Override
@@ -24,7 +31,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(
                         "https://swp-391-frontend-mu.vercel.app",
-                        "https://localhost:3000",
+                        "http://localhost:3000",
                         "http://localhost:8080",
                         "https://nonpending-lelia-ballistically.ngrok-free.dev"
                 )

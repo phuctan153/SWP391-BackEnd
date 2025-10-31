@@ -33,8 +33,9 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
 
-                // ✅ Phân quyền truy cập
+                // ✅ Phân quyền truy cập chi tiết
                 .authorizeHttpRequests(auth -> auth
+                        // Public API (cho phép truy cập tự do)
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/stations/**",
@@ -52,9 +53,19 @@ public class SecurityConfig {
                                 "/v3/api-docs/swagger-config",
                                 "/error"
                         ).permitAll()
+
+                        // 🚫 Chặn public access trực tiếp file hợp đồng
+                        .requestMatchers("/files/contracts/**").denyAll()
+
+                        // ✅ API xem hợp đồng có JWT
+                        .requestMatchers("/api/renter/contracts/view/**").authenticated()
+
+                        // Role-based access
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
                         .requestMatchers("/api/renter/**").hasRole("RENTER")
+
+                        // Các request khác đều cần đăng nhập
                         .anyRequest().authenticated()
                 )
 
@@ -65,7 +76,7 @@ public class SecurityConfig {
                         .defaultSuccessUrl("https://swp-391-frontend-mu.vercel.app/homepage", true)
                 )
 
-                // ✅ JWT filter
+                // ✅ Thêm JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // ✅ Stateless session
@@ -80,7 +91,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ✅ Cấu hình CORS CHUẨN
+    // ✅ Cấu hình CORS CHUẨN CHO FRONTEND
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -99,13 +110,13 @@ public class SecurityConfig {
         // ⚡ Cho phép các header cần thiết
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
 
-        // ⚡ Expose thêm header (Swagger và file download)
+        // ⚡ Cho phép frontend đọc các header này từ response
         configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
 
-        // ⚡ Cho phép gửi cookie, JWT
+        // ⚡ Cho phép gửi cookie hoặc JWT token
         configuration.setAllowCredentials(true);
 
-        // ⚡ Cache CORS 1h
+        // ⚡ Cache cấu hình CORS trong 1 giờ
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

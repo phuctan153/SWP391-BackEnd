@@ -478,6 +478,24 @@ public class ContractServiceImpl implements ContractService{
                 .build();
     }
 
+    @Override
+    public ContractResponseDTO getContractById(Long contractId) {
+        return contractRepository.findById(contractId)
+                .map(contract -> ContractResponseDTO.builder()
+                        .contractId(contract.getContractId())
+                        .bookingId(contract.getBooking() != null ? contract.getBooking().getBookingId() : null)
+                        // ✅ Chuyển enum sang String an toàn
+                        .contractType(contract.getContractType() != null ? contract.getContractType().name() : null)
+                        .contractFileUrl(contract.getContractFileUrl())
+                        .status(contract.getStatus() != null ? contract.getStatus().name() : null)
+                        .contractDate(contract.getContractDate())
+                        .createdAt(contract.getCreatedAt())
+                        .updatedAt(contract.getUpdatedAt())
+                        .build())
+                .orElse(null);
+    }
+
+
 
 
     // 📧 Gửi email helper

@@ -25,32 +25,32 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ Cho phép CORS và tắt CSRF
+                // ✅ Bật CORS và tắt CSRF
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // ✅ Không kích hoạt login mặc định (form hoặc oauth)
+                // ✅ Tắt form login và HTTP Basic
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
 
-                // ✅ Quyền truy cập
+                // ✅ Phân quyền truy cập
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/**",      // đăng ký / login
-                                "/api/stations/**",  // public cho bản đồ
+                                "/api/auth/**",
+                                "/api/stations/**",
                                 "/api/momo/**",
                                 "/api/vehicle/**",
+                                "/api/vehicles/**",
+                                "/api/vehicle-models/**",
+                                "/api/bookings/**",
+                                "/api/payments/**",
+                                "/api/invoices/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/v3/api-docs.yaml",
                                 "/v3/api-docs/swagger-config",
-                                "/error",
-                                "/api/vehicles/**",// tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/bookings/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/vehicle-models/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/payments/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/invoices/**"
+                                "/error"
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
@@ -58,20 +58,20 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Chỉ bật OAuth2 khi user chủ động login Google
+                // ✅ Cấu hình OAuth2 login (Google)
                 .oauth2Login(oauth -> oauth
-                        .loginPage("/api/auth/google") // custom login URL
+                        .loginPage("/api/auth/google")
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                         .defaultSuccessUrl("https://swp-391-frontend-mu.vercel.app/homepage", true)
                 )
 
-                // ✅ JWT Filter
+                // ✅ JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // ✅ Stateless session
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // ✅ Logout
+                // ✅ Logout redirect
                 .logout(logout -> logout
                         .logoutSuccessUrl("https://swp-391-frontend-mu.vercel.app/login")
                         .permitAll()
@@ -80,17 +80,32 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ✅ CORS cấu hình
+    // ✅ Cấu hình CORS CHUẨN
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("https://nonpending-lelia-ballistically.ngrok-free.dev",
+
+        // ⚡ Cho phép các domain frontend
+        configuration.setAllowedOrigins(List.of(
                 "https://swp-391-frontend-mu.vercel.app",
+                "https://nonpending-lelia-ballistically.ngrok-free.dev",
+                "http://localhost:3000",
                 "http://localhost:8080"
         ));
+
+        // ⚡ Cho phép các method cơ bản
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        // ⚡ Cho phép các header cần thiết
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+
+        // ⚡ Expose thêm header (Swagger và file download)
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
+
+        // ⚡ Cho phép gửi cookie, JWT
         configuration.setAllowCredentials(true);
+
+        // ⚡ Cache CORS 1h
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

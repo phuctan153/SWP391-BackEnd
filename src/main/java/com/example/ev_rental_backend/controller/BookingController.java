@@ -3,9 +3,12 @@ package com.example.ev_rental_backend.controller;
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.service.booking.BookingService;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -75,11 +78,14 @@ public class BookingController {
     /**
      * POST /api/bookings/{bookingId}/images - Upload ảnh xe (BR-09, BR-26)
      */
-    @PostMapping("/{bookingId}/images")
+    @PostMapping(
+            value = "/{bookingId}/images",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingImageResponseDto>> uploadBookingImage(
             @PathVariable Long bookingId,
-            @RequestParam("file") MultipartFile file,
+            @ModelAttribute("file") MultipartFile file,
             @RequestParam("imageType") String imageType,
             @RequestParam(value = "description", required = false) String description) {
 

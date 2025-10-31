@@ -1,7 +1,10 @@
 package com.example.ev_rental_backend.service.booking;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.example.ev_rental_backend.exception.CustomException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,16 +16,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @Slf4j
 public class FileStorageService {
-    @Value("${file.upload-dir:uploads}")
-    private String uploadDir;
-
-    @Value("${file.base-url:http://localhost:8080/uploads}")
-    private String baseUrl;
+    @Autowired
+    private Cloudinary cloudinary;
 
     /**
      * Lưu file và trả về URL
@@ -32,30 +33,22 @@ public class FileStorageService {
         validateFile(file);
 
         try {
-            // Tạo thư mục nếu chưa tồn tại
-            Path uploadPath = Paths.get(uploadDir, subDirectory);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+            Map uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", subDirectory,
+                            "resource_type", "auto" // Cho phép upload cả ảnh/video
+                    )
+            );
 
-            // Tạo tên file unique
-            String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
-            String fileExtension = getFileExtension(originalFilename);
-            String newFilename = UUID.randomUUID().toString() + fileExtension;
-
-            // Copy file vào thư mục
-            Path targetLocation = uploadPath.resolve(newFilename);
-            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-
-            // Trả về URL
-            String fileUrl = baseUrl + "/" + subDirectory + "/" + newFilename;
-            log.info("File stored successfully: {}", fileUrl);
+            String fileUrl = uploadResult.get("secure_url").toString();
+            log.info("File uploaded to Cloudinary: {}", fileUrl);
 
             return fileUrl;
 
         } catch (IOException ex) {
-            log.error("Could not store file", ex);
-            throw new CustomException("Could not store file: " + ex.getMessage(),
+            log.error("Could not upload file to Cloudinary", ex);
+            throw new CustomException("Could not upload file to Cloudinary: " + ex.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -65,21 +58,19 @@ public class FileStorageService {
      */
     public void deleteFile(String fileUrl) {
         try {
-            // Extract filename from URL
-            String filename = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
-            String subDirectory = fileUrl.substring(
-                    fileUrl.indexOf(uploadDir) + uploadDir.length() + 1,
-                    fileUrl.lastIndexOf("/")
-            );
+            // Ví dụ fileUrl: https://res.cloudinary.com/demo/image/upload/v123456789/folder/myimage.jpg
+            String publicId = extractPublicIdFromUrl(fileUrl);
 
-            Path filePath = Paths.get(uploadDir, subDirectory, filename);
-            Files.deleteIfExists(filePath);
+            if (publicId == null) {
+                throw new CustomException("Invalid Cloudinary URL", HttpStatus.BAD_REQUEST);
+            }
 
-            log.info("File deleted: {}", fileUrl);
+            Map result = cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            log.info("File deleted from Cloudinary: {}", result);
 
-        } catch (IOException ex) {
-            log.error("Could not delete file: {}", fileUrl, ex);
-            throw new CustomException("Could not delete file", HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (IOException e) {
+            log.error("Could not delete file from Cloudinary: {}", fileUrl, e);
+            throw new CustomException("Could not delete file from Cloudinary", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -91,14 +82,11 @@ public class FileStorageService {
             throw new CustomException("File is empty", HttpStatus.BAD_REQUEST);
         }
 
-        // Check file size (max 10MB)
         long maxSize = 10 * 1024 * 1024; // 10MB
         if (file.getSize() > maxSize) {
-            throw new CustomException("File size exceeds maximum limit of 10MB",
-                    HttpStatus.BAD_REQUEST);
+            throw new CustomException("File size exceeds maximum limit of 10MB", HttpStatus.BAD_REQUEST);
         }
 
-        // Check file type (images only)
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new CustomException("Only image files are allowed", HttpStatus.BAD_REQUEST);
@@ -106,13 +94,27 @@ public class FileStorageService {
     }
 
     /**
-     * Get file extension
+     * Tách publicId từ URL Cloudinary
+     * Ví dụ:
+     *  https://res.cloudinary.com/demo/image/upload/v123/folder/myimage.jpg
+     *  → publicId = folder/myimage (không có .jpg)
      */
-    private String getFileExtension(String filename) {
-        int lastDot = filename.lastIndexOf(".");
-        if (lastDot == -1) {
-            return "";
+    private String extractPublicIdFromUrl(String fileUrl) {
+        try {
+            String withoutVersion = fileUrl.substring(fileUrl.indexOf("/upload/") + 8);
+            // Bỏ "v123456789/" nếu có
+            String[] parts = withoutVersion.split("/");
+            if (parts[0].startsWith("v") && parts[0].length() > 1 && Character.isDigit(parts[0].charAt(1))) {
+                withoutVersion = withoutVersion.substring(parts[0].length() + 1);
+            }
+
+            // Bỏ phần mở rộng (.jpg, .png, ...)
+            int dotIndex = withoutVersion.lastIndexOf(".");
+            return dotIndex != -1 ? withoutVersion.substring(0, dotIndex) : withoutVersion;
+
+        } catch (Exception e) {
+            log.error("Failed to extract publicId from URL: {}", fileUrl, e);
+            return null;
         }
-        return filename.substring(lastDot);
     }
 }

@@ -219,8 +219,6 @@ public class BookingServiceImpl implements BookingService {
         Vehicle vehicle = booking.getVehicle();
         validator.validateBatteryLevel(vehicle);
 
-        // BR-08: Xác thực danh tính (giả sử đã xác thực ở bước trước)
-
         // Gán staff
         if (requestDto.getStaffId() != null) {
             Staff staff = staffRepository.findById(requestDto.getStaffId())

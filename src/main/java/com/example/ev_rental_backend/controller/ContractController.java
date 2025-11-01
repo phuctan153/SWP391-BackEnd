@@ -3,10 +3,12 @@ package com.example.ev_rental_backend.controller;
 import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.BookingContractInfoDTO;
+import com.example.ev_rental_backend.dto.booking.BookingResponseDto;
 import com.example.ev_rental_backend.dto.contract.AdminContractSignDTO;
 import com.example.ev_rental_backend.dto.contract.ContractRequestDTO;
 import com.example.ev_rental_backend.dto.contract.ContractResponseDTO;
 import com.example.ev_rental_backend.entity.TermCondition;
+import com.example.ev_rental_backend.service.booking.BookingService;
 import com.example.ev_rental_backend.service.contract.ContractService;
 import com.example.ev_rental_backend.service.contract.TermTemplateService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class ContractController {
     private final TermTemplateService termTemplateService;
     private final ContractService contractService;
     private final JwtTokenUtil jwtTokenUtil;
+    private final BookingService bookingService;
 
     // 📄 Staff: Lấy mẫu điều khoản hợp đồng
     @GetMapping("/staff/contracts/template")
@@ -205,10 +208,12 @@ public class ContractController {
             @PathVariable Long contractId,
             @RequestHeader("Authorization") String authHeader) {
         try {
+            // 🧩 Giải mã token
             String token = authHeader.substring(7);
             Long userId = jwtTokenUtil.extractUserId(token);
             String role = jwtTokenUtil.extractRole(token);
 
+            // 🧩 Lấy thông tin hợp đồng
             ContractResponseDTO contract = contractService.getContractById(contractId);
             if (contract == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -216,15 +221,40 @@ public class ContractController {
                                 .data("Không tìm thấy hợp đồng").build());
             }
 
-            boolean isRenter = "RENTER".equalsIgnoreCase(role);
-            boolean isStaffOrAdmin = "STAFF".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role);
+            // 🧩 Lấy thông tin booking để biết renterId và staffId
+            BookingResponseDto booking = bookingService.getBookingById(contract.getBookingId());
+            if (booking == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.builder().status("error").code(404)
+                                .data("Không tìm thấy thông tin booking liên quan").build());
+            }
 
-            if (isRenter && !contract.getBookingId().equals(userId)) {
+            Long renterId = booking.getRenterId();
+            Long staffId = booking.getStaffId(); // cần có field này trong BookingResponseDto
+
+            // 🧩 Kiểm tra quyền truy cập
+            boolean isRenter = "RENTER".equalsIgnoreCase(role);
+            boolean isStaff = "STAFF".equalsIgnoreCase(role);
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(role);
+
+            // ✅ Chỉ Renter chính chủ mới xem được
+            if (isRenter && !renterId.equals(userId)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ApiResponse.builder().status("error").code(403)
                                 .data("Bạn không có quyền xem hợp đồng này").build());
             }
 
+            // ✅ Staff chỉ được xem hợp đồng thuộc booking mà họ xử lý
+            if (isStaff && (staffId == null || !staffId.equals(userId))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.builder().status("error").code(403)
+                                .data("Bạn không có quyền xem hợp đồng này vì không phụ trách booking này").build());
+            }
+
+            // ✅ Admin có quyền xem tất cả
+            // (Không cần kiểm tra thêm gì)
+
+            // 🧩 Kiểm tra file PDF tồn tại
             String filePath = "uploads/contracts/contract_" + contractId + ".pdf";
             File file = new File(filePath);
             if (!file.exists()) {
@@ -233,6 +263,7 @@ public class ContractController {
                                 .data("File hợp đồng không tồn tại").build());
             }
 
+            // 🧩 Trả file PDF inline
             FileSystemResource resource = new FileSystemResource(file);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=" + file.getName())
@@ -245,4 +276,5 @@ public class ContractController {
                             .data("Lỗi khi truy cập hợp đồng: " + e.getMessage()).build());
         }
     }
+
 }

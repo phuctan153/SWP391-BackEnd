@@ -426,12 +426,13 @@ public class ContractServiceImpl implements ContractService{
         // 📝 Cập nhật hợp đồng
         contract.setStatus(Contract.Status.FULLY_SIGNED);
         contract.setRenterSignedAt(LocalDateTime.now());
+        contractRepository.save(contract);
 
         // 🧩 Regenerate lại PDF (FULLY_SIGNED)
         String newFileUrl = pdfGeneratorService.generateContractFile(contract);
         contract.setContractFileUrl(newFileUrl);
-
         contractRepository.save(contract);
+
 
         Renter renter = booking.getRenter();
 

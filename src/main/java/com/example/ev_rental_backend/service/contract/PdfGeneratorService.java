@@ -56,6 +56,13 @@ public class PdfGeneratorService {
             data.put("adminName",
                     (contract.getAdmin() != null) ? contract.getAdmin().getFullName() : "");
 
+            if (contract.getRenterSignedAt() != null) {
+                formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+                data.put("renterSignedAt", contract.getRenterSignedAt().format(formatter));
+            } else {
+                data.put("renterSignedAt", "");
+            }
+
 
             List<TermCondition> terms = contract.getTerms();
             if (terms == null || terms.isEmpty()) {

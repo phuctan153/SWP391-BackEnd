@@ -190,20 +190,76 @@ public class ContractController {
     }
 
     // 🧍‍♂️ Renter: Lấy hợp đồng theo Booking ID
-    @GetMapping("/renter/contracts/{bookingId}")
-    public ResponseEntity<ApiResponse<?>> getContractByBookingId(@PathVariable Long bookingId) {
+    @GetMapping("/contracts/{bookingId}")
+    public ResponseEntity<ApiResponse<?>> getContractByBookingId(
+            @PathVariable Long bookingId,
+            @RequestHeader("Authorization") String authHeader) {
         try {
+            // 🔐 Giải mã JWT
+            String token = authHeader.substring(7);
+            Long userId = jwtTokenUtil.extractUserId(token);
+            String role = jwtTokenUtil.extractRole(token);
+
+            // 🧩 Lấy thông tin contract theo bookingId
             ContractResponseDTO dto = contractService.getContractByBookingId(bookingId);
+            if (dto == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.<String>builder()
+                                .status("error").code(404)
+                                .data("Không tìm thấy hợp đồng của booking #" + bookingId)
+                                .build());
+            }
+
+            // 🧩 Lấy thông tin booking để kiểm tra quyền
+            BookingResponseDto booking = bookingService.getBookingById(bookingId);
+            if (booking == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.<String>builder()
+                                .status("error").code(404)
+                                .data("Không tìm thấy thông tin booking #" + bookingId)
+                                .build());
+            }
+
+            Long renterId = booking.getRenterId();
+            Long staffId = booking.getStaffId();
+
+            boolean isRenter = role.equalsIgnoreCase("RENTER");
+            boolean isStaff = role.equalsIgnoreCase("STAFF");
+            boolean isAdmin = role.equalsIgnoreCase("ADMIN");
+
+            // 🚫 Kiểm tra quyền hợp lệ
+            if (isRenter && !renterId.equals(userId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.<String>builder()
+                                .status("error").code(403)
+                                .data("Bạn không có quyền xem hợp đồng này").build());
+            }
+
+            if (isStaff && (staffId == null || !staffId.equals(userId))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.<String>builder()
+                                .status("error").code(403)
+                                .data("Bạn không có quyền xem hợp đồng này (không phụ trách booking này)").build());
+            }
+
+            // ✅ Admin có thể xem tất cả
+            // Nếu qua hết kiểm tra → cho phép trả về contract
             return ResponseEntity.ok(ApiResponse.<ContractResponseDTO>builder()
                     .status("success").code(200).data(dto).build());
+
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponse.<String>builder()
                     .status("error").code(400).data(e.getMessage()).build());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(ApiResponse.<String>builder()
+                    .status("error").code(500)
+                    .data("Lỗi hệ thống: " + e.getMessage()).build());
         }
     }
 
+
     // 🧾 Renter / Staff / Admin: Xem file hợp đồng PDF an toàn
-    @GetMapping("/renter/contracts/view/{contractId}")
+    @GetMapping("/contracts/view/{contractId}")
     public ResponseEntity<?> viewContractFile(
             @PathVariable Long contractId,
             @RequestHeader("Authorization") String authHeader) {

@@ -334,4 +334,32 @@ public class BookingController {
                 .build());
     }
 
+    /**
+     * GET /api/bookings/admin/all - Admin xem tất cả booking trong hệ thống
+     */
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<BookingResponseDto>>> getAllBookingsForAdmin() {
+        try {
+            List<BookingResponseDto> bookings = bookingService.getAllBookings();
+
+            return ResponseEntity.ok(ApiResponse.<List<BookingResponseDto>>builder()
+                    .status("success")
+                    .code(HttpStatus.OK.value())
+                    .message("Danh sách toàn bộ booking trong hệ thống (Admin truy cập)")
+                    .data(bookings)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<BookingResponseDto>>builder()
+                            .status("error")
+                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .message("Lỗi khi lấy danh sách booking: " + e.getMessage())
+                            .build());
+        }
+    }
+
+
+
+
 }

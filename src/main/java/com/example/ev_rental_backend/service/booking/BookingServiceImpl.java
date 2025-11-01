@@ -5,6 +5,7 @@ import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
+import com.example.ev_rental_backend.mapper.BookingMapper;
 import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.notification.NotificationServiceImpl;
 import com.example.ev_rental_backend.entity.Booking;
@@ -44,6 +45,7 @@ public class BookingServiceImpl implements BookingService {
     private final NotificationServiceImpl notificationService;
     private final JavaMailSender mailSender;
     private final StaffStationRepository staffStationRepository;
+    private final BookingMapper bookingMapper;
 
     // ==================== 5.1. Booking Creation ====================
     @Override
@@ -146,6 +148,15 @@ public class BookingServiceImpl implements BookingService {
                     .build();
         }).toList();
     }
+
+    @Override
+    public List<BookingResponseDto> getAllBookings() {
+        List<Booking> bookings = bookingRepository.findAll();
+        return bookings.stream()
+                .map(bookingMapper::toBookingResponseDto)
+                .toList();
+    }
+
 
     @Override
     public Booking getBookingEntityById(Long bookingId) {

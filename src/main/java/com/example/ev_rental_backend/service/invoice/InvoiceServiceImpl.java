@@ -12,6 +12,8 @@ import com.example.ev_rental_backend.service.policy.PolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -55,29 +57,34 @@ public class InvoiceServiceImpl implements InvoiceService {
      */
     @Override
     public InvoiceResponseDto createDepositInvoice(Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
+        // ✅ Lấy email renter hiện tại từ token trong SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String renterEmail = authentication.getName(); // do JwtAuthFilter đã set email ở đây
 
-        // ✅ Booking phải ở trạng thái cho phép đặt cọc (PENDING hoặc RESERVED)
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy booking với ID: " + bookingId));
+
+        // ✅ Kiểm tra booking có thuộc renter hiện tại không
+        if (!booking.getRenter().getEmail().equalsIgnoreCase(renterEmail)) {
+            throw new CustomException("Bạn không có quyền tạo hóa đơn cho booking này", HttpStatus.FORBIDDEN);
+        }
+
+        // ✅ (Phần còn lại giữ nguyên)
         if (booking.getStatus() != Booking.Status.PENDING &&
                 booking.getStatus() != Booking.Status.RESERVED) {
-            throw new CustomException("Deposit invoice can only be created for PENDING or RESERVED bookings",
+            throw new CustomException("Chỉ có thể tạo hóa đơn đặt cọc cho booking ở trạng thái PENDING hoặc RESERVED",
                     HttpStatus.BAD_REQUEST);
         }
 
-        // ✅ Kiểm tra xem đã có deposit invoice chưa
         boolean hasDepositInvoice = booking.getInvoices().stream()
                 .anyMatch(inv -> inv.getType() == Invoice.Type.DEPOSIT);
 
         if (hasDepositInvoice) {
-            throw new CustomException("Deposit invoice already exists for this booking",
-                    HttpStatus.BAD_REQUEST);
+            throw new CustomException("Booking này đã có hóa đơn đặt cọc", HttpStatus.BAD_REQUEST);
         }
 
-        // ✅ Lấy tiền cọc từ Policy (PolicyType.DEPOSIT_AMOUNT)
         double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
 
-        // ✅ Tạo invoice mới với giá trị từ Policy
         Invoice invoice = Invoice.builder()
                 .booking(booking)
                 .type(Invoice.Type.DEPOSIT)
@@ -89,13 +96,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
-
-        // ✅ Cập nhật trạng thái booking → “WAITING_FOR_CONFIRMATION” hoặc giữ nguyên PENDING tùy logic bạn muốn
-        booking.setStatus(Booking.Status.PENDING);
-        bookingRepository.save(booking);
-
         return mapToResponseDto(savedInvoice);
     }
+
 
 
     /**

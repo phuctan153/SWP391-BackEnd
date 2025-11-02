@@ -1,6 +1,7 @@
 package com.example.ev_rental_backend.repository;
 
 import com.example.ev_rental_backend.entity.StaffStation;
+import com.example.ev_rental_backend.entity.Station;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -25,4 +26,6 @@ public interface StaffStationRepository extends JpaRepository<StaffStation, Long
             StaffStation.RoleAtStation roleAtStation,
             StaffStation.Status status
     );
+
+    List<StaffStation> findByStationAndStatus(Station station, StaffStation.Status status);
 }

@@ -64,7 +64,8 @@ public class Policy {
         REFUND_PERCENT_ADMIN,    // phần trăm hoàn tiền khi admin hủy
         MIN_DAYS_BEFORE_BOOKING, // số ngày tối thiểu được đặt
         MAX_DAYS_BEFORE_BOOKING, // số ngày tối đa được đặt
-        DEPOSIT_AMOUNT           // tiền cọc
+        DEPOSIT_AMOUNT,        // tiền cọc
+        RENTAL_TIME_THRESHOLD_HOURS
     }
 
     // 🔹 ENUM: phạm vi áp dụng

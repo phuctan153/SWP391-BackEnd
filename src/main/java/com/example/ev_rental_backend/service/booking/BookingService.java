@@ -34,4 +34,11 @@ public interface BookingService {
 
     List<BookingResponseDto> getAllBookings();
 
+    BookingResponseDto confirmVehicleReturn(Long bookingId, String staffEmail);
+
+
+    void notifyStationStaffAboutReturn(Long bookingId, String renterEmail);
+
+
+
 }

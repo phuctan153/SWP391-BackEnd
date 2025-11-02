@@ -105,7 +105,7 @@ public class SecurityConfig {
         ));
 
         // ⚡ Cho phép các method cơ bản
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
         // ⚡ Cho phép các header cần thiết
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));

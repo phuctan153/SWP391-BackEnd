@@ -11,4 +11,7 @@ public interface InvoiceService {
     public InvoiceResponseDto createFinalInvoice(Long bookingId, CreateFinalInvoiceDto requestDto);
     public InvoiceDetailResponseDto addInvoiceDetail(Long invoiceId, CreateInvoiceDetailDto requestDto);
     public void deleteInvoiceDetail(Long invoiceId, Long detailId);
+
+    public List<InvoiceDetailResponseDto> addInvoiceDetailsFromPriceList(Long invoiceId, AddInvoiceDetailsRequest dto);
+    public InvoiceResponseDto recalculateInvoice(Long invoiceId);
 }

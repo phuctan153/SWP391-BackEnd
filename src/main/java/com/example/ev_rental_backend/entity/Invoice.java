@@ -69,6 +69,10 @@ public class Invoice {
     @Builder.Default
     private List<PaymentTransaction> transactions = new ArrayList<>();
 
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<InvoiceDetail> invoiceDetails;
+
+
     // Tự động set ngày tạo khi lưu vào DB
     @PrePersist
     protected void onCreate() {

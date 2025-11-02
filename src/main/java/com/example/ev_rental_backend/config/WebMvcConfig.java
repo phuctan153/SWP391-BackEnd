@@ -35,8 +35,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "http://localhost:8080",
                         "https://nonpending-lelia-ballistically.ngrok-free.dev"
                 )
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);
     }
+
 }

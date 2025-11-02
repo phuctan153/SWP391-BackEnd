@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.service.notification;
 
 import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.entity.Notification;
+import com.example.ev_rental_backend.entity.Station;
 
 import java.util.List;
 
@@ -15,6 +16,8 @@ public interface NotificationService {
     public void sendNewBookingToStaff(Booking booking, Long staffId);
     public List<Notification> getAllNotificationsForAdmin(Long adminId);
     public void markAsRead(Long notificationId);
+
+    public void notifyAllStaffInStation(Station station, Booking booking);
 
     public void sendNotificationToAdmin(Long adminId, String title, String message);
 

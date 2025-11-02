@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.service.wallet;
 
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.repository.*;
+import com.example.ev_rental_backend.service.policy.PolicyService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ public class WalletServiceImpl implements WalletService {
     private final PaymentTransactionRepository transactionRepository;
     private final BookingRepository bookingRepository;
     private final PolicyRepository policyRepository;
+    private final PolicyService policyService;
 
     @Override
     public List<Wallet> getAllWallets() {
@@ -139,8 +141,9 @@ public class WalletServiceImpl implements WalletService {
         Policy policy = policyRepository.findAll().stream().findFirst()
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách doanh nghiệp"));
 
-        double refundPercent = policy.getRefundPercentAdmin(); // 🟢 Admin hoàn theo % trong Policy
-        double depositAmount = policy.getDepositAmount();
+        double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_ADMIN);
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
+
 
         BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
 
@@ -181,8 +184,10 @@ public class WalletServiceImpl implements WalletService {
         Policy policy = policyRepository.findAll().stream().findFirst()
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách doanh nghiệp"));
 
-        double refundPercent = policy.getRefundPercentRenter(); // 🟢 refund theo phần trăm cho renter
-        double depositAmount = policy.getDepositAmount();
+        double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
+
+// ✅ Lấy tiền cọc hiện tại
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
 
         BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
 

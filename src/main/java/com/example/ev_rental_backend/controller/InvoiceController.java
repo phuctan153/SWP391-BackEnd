@@ -51,18 +51,18 @@ public class InvoiceController {
      * POST /api/bookings/{bookingId}/invoices/deposit - Tạo hóa đơn đặt cọc (BR-06, BR-23)
      */
     @PostMapping("/bookings/{bookingId}/invoices/deposit")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponseDto>> createDepositInvoice(
-            @PathVariable Long bookingId,
-            @Valid @RequestBody CreateDepositInvoiceDto requestDto) {
-        InvoiceResponseDto invoice = invoiceService.createDepositInvoice(bookingId, requestDto);
+            @PathVariable Long bookingId) {
+        InvoiceResponseDto invoice = invoiceService.createDepositInvoice(bookingId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<InvoiceResponseDto>builder()
                         .status("success")
                         .code(HttpStatus.CREATED.value())
                         .data(invoice)
+                        .message("Tạo hóa đơn tiền cọc thành công")
                         .build());
     }
+
 
     /**
      * POST /api/bookings/{bookingId}/invoices/final - Tạo hóa đơn cuối (BR-27)

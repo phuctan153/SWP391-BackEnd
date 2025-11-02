@@ -1,6 +1,8 @@
 package com.example.ev_rental_backend.service.policy;
 
 import com.example.ev_rental_backend.entity.Policy;
+import com.example.ev_rental_backend.entity.Policy.PolicyType;
+import com.example.ev_rental_backend.entity.Policy.Status;
 import com.example.ev_rental_backend.repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,38 +18,17 @@ public class PolicyServiceImpl implements PolicyService {
     private final PolicyRepository policyRepository;
 
     // ===========================================================
-    // 🔹 Các hàm tiện ích cho Booking / Refund
+    // 🔹 Lấy giá trị của policy theo loại
     // ===========================================================
-
     @Override
-    public double getRefundPercentForRenter() {
-        Policy active = getActivePolicy();
-        return active.getRefundPercentRenter();
-    }
-
-    @Override
-    public double getRefundPercentForAdmin() {
-        Policy active = getActivePolicy();
-        return active.getRefundPercentAdmin();
-    }
-
-    @Override
-    public Policy getActivePolicy() {
-        return policyRepository.findFirstByStatusOrderByCreatedAtDesc(Policy.Status.ACTIVE)
-                .orElseThrow(() -> new RuntimeException("Không có policy nào đang hoạt động"));
-    }
-
-    @Override
-    public double getDepositAmountForBooking(Long bookingId) {
-        // BookingId chỉ để tham chiếu, tạm thời mọi booking dùng policy ACTIVE hiện tại
-        Policy active = getActivePolicy();
-        return active.getDepositAmount();
+    public double getPolicyValue(PolicyType type) {
+        Policy active = getActivePolicyByType(type);
+        return active.getValue();
     }
 
     // ===========================================================
-    // 🧩 CRUD
+    // 🔹 CRUD cơ bản
     // ===========================================================
-
     @Override
     public List<Policy> getAllPolicies() {
         return policyRepository.findAll();
@@ -61,13 +42,12 @@ public class PolicyServiceImpl implements PolicyService {
 
     @Override
     public Policy createPolicy(Policy policy) {
-        // Nếu policy mới là ACTIVE → deactivate tất cả policy khác
-        if (policy.getStatus() == Policy.Status.ACTIVE) {
-            List<Policy> activePolicies = policyRepository.findByStatus(Policy.Status.ACTIVE);
-            activePolicies.forEach(p -> p.setStatus(Policy.Status.INACTIVE));
-            policyRepository.saveAll(activePolicies);
+        // Nếu policy mới là ACTIVE → deactivate các policy cùng loại khác
+        if (policy.getStatus() == Status.ACTIVE) {
+            List<Policy> sameTypePolicies = policyRepository.findByPolicyType(policy.getPolicyType());
+            sameTypePolicies.forEach(p -> p.setStatus(Status.INACTIVE));
+            policyRepository.saveAll(sameTypePolicies);
         }
-
         return policyRepository.save(policy);
     }
 
@@ -75,13 +55,8 @@ public class PolicyServiceImpl implements PolicyService {
     public Policy updatePolicy(Long id, Policy updatedPolicy) {
         Policy existing = getPolicyById(id);
 
-        existing.setPolicyName(updatedPolicy.getPolicyName());
         existing.setDescription(updatedPolicy.getDescription());
-        existing.setRefundPercentRenter(updatedPolicy.getRefundPercentRenter());
-        existing.setRefundPercentAdmin(updatedPolicy.getRefundPercentAdmin());
-        existing.setMinDaysBeforeBooking(updatedPolicy.getMinDaysBeforeBooking());
-        existing.setMaxDaysBeforeBooking(updatedPolicy.getMaxDaysBeforeBooking());
-        existing.setDepositAmount(updatedPolicy.getDepositAmount());
+        existing.setValue(updatedPolicy.getValue());
         existing.setAppliedScope(updatedPolicy.getAppliedScope());
         existing.setStatus(updatedPolicy.getStatus());
 
@@ -91,7 +66,21 @@ public class PolicyServiceImpl implements PolicyService {
     @Override
     public Policy deactivatePolicy(Long id) {
         Policy policy = getPolicyById(id);
-        policy.setStatus(Policy.Status.INACTIVE);
+        policy.setStatus(Status.INACTIVE);
         return policyRepository.save(policy);
+    }
+
+    // ===========================================================
+    // 🔹 Hàm tiện ích
+    // ===========================================================
+    @Override
+    public List<Policy> getPoliciesByType(PolicyType type) {
+        return policyRepository.findByPolicyType(type);
+    }
+
+    @Override
+    public Policy getActivePolicyByType(PolicyType type) {
+        return policyRepository.findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(type, Status.ACTIVE)
+                .orElseThrow(() -> new RuntimeException("Không có policy đang hoạt động cho loại " + type));
     }
 }

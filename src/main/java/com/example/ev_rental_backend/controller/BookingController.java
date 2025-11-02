@@ -5,6 +5,7 @@ import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.entity.Admin;
 import com.example.ev_rental_backend.entity.Booking;
+import com.example.ev_rental_backend.entity.Policy;
 import com.example.ev_rental_backend.repository.AdminRepository;
 import com.example.ev_rental_backend.service.booking.BookingService;
 import com.example.ev_rental_backend.service.notification.NotificationService;
@@ -97,7 +98,7 @@ public class BookingController {
         }
         else if (auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().contains("RENTER"))) {
 
-            double refundPercent = policyService.getRefundPercentForRenter();
+            double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
 
             //gửi thông báo cho admin kích hoạt hoàn tiền
             Admin admin = adminRepository.findFirstByStatus(Admin.Status.ACTIVE)
@@ -127,11 +128,9 @@ public class BookingController {
     @PreAuthorize("hasRole('RENTER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> confirmCancelBooking(@PathVariable Long bookingId) {
         // ✅ Lấy phần trăm hoàn tiền từ policy
-        double refundPercent = policyService.getRefundPercentForRenter();
-
+        double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
         // ✅ Có thể mở rộng: lấy thêm thông tin tiền cọc từ Policy hoặc PriceList
-        double depositAmount = policyService.getDepositAmountForBooking(bookingId);
-
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
         Map<String, Object> data = getStringObjectMap(bookingId, depositAmount, refundPercent);
 
         return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()

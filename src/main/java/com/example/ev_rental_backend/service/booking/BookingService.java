@@ -1,18 +1,30 @@
 package com.example.ev_rental_backend.service.booking;
 
 import com.example.ev_rental_backend.dto.booking.*;
+import com.example.ev_rental_backend.entity.BookingImage;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.ev_rental_backend.entity.Booking;
 
 import java.util.List;
+import java.util.Map;
 
 public interface BookingService {
     public BookingResponseDto createBooking(CreateBookingRequestDto requestDto);
     public BookingResponseDto getBookingById(Long bookingId);
     public BookingResponseDto cancelBooking(Long bookingId, CancelBookingRequestDto requestDto);
-    public BookingImageResponseDto uploadBookingImage(Long bookingId, MultipartFile file,
-                                                      String imageTypeStr, String description);
-    public List<BookingImageResponseDto> getBookingImages(Long bookingId);
+    public BookingImageResponseDto uploadBookingImage(
+            Long bookingId,
+            MultipartFile file,
+            String imageTypeStr,
+            String vehicleComponentStr,
+            String description);
+    public List<BookingImageResponseDto> getBookingImages(
+            Long bookingId,
+            String imageTypeFilter,
+            String vehicleComponentFilter);
+    public void deleteBookingImage(Long bookingId, Long imageId);
+    public Map<String, Object> checkImageChecklist(Long bookingId, BookingImage.ImageType imageType);
+
     public BookingResponseDto pickupVehicle(Long bookingId, PickupRequestDto requestDto);
     public BookingResponseDto updateStatusToInUse(Long bookingId);
     public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto);

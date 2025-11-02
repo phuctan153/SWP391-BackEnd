@@ -2,6 +2,8 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.*;
+import com.example.ev_rental_backend.entity.BookingImage;
+import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.service.booking.BookingService;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,7 +16,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -75,9 +80,6 @@ public class BookingController {
 
     // ==================== 5.2. Booking Images ====================
 
-    /**
-     * POST /api/bookings/{bookingId}/images - Upload ảnh xe (BR-09, BR-26)
-     */
     @PostMapping(
             value = "/{bookingId}/images",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -85,33 +87,122 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingImageResponseDto>> uploadBookingImage(
             @PathVariable Long bookingId,
-            @ModelAttribute("file") MultipartFile file,
+            @RequestParam("file") MultipartFile file,
             @RequestParam("imageType") String imageType,
+            @RequestParam(value = "vehicleComponent", required = false) String vehicleComponent,
             @RequestParam(value = "description", required = false) String description) {
 
         BookingImageResponseDto image = bookingService.uploadBookingImage(
-                bookingId, file, imageType, description);
+                bookingId, file, imageType, vehicleComponent, description);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<BookingImageResponseDto>builder()
                         .status("success")
                         .code(HttpStatus.CREATED.value())
+                        .message("Image uploaded successfully")
                         .data(image)
                         .build());
     }
 
     /**
-     * GET /api/bookings/{bookingId}/images - Lấy danh sách ảnh
+     * GET /api/v1/bookings/{bookingId}/images - Lấy danh sách ảnh với filter
+     *
+     * @param bookingId ID booking
+     * @param imageType Filter theo loại ảnh (optional)
+     * @param vehicleComponent Filter theo hạng mục xe (optional)
      */
     @GetMapping("/{bookingId}/images")
     @PreAuthorize("hasAnyRole('RENTER', 'STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<BookingImageResponseDto>>> getBookingImages(
-            @PathVariable Long bookingId) {
-        List<BookingImageResponseDto> images = bookingService.getBookingImages(bookingId);
+            @PathVariable Long bookingId,
+            @RequestParam(value = "imageType", required = false) String imageType,
+            @RequestParam(value = "vehicleComponent", required = false) String vehicleComponent) {
+
+        List<BookingImageResponseDto> images = bookingService.getBookingImages(
+                bookingId, imageType, vehicleComponent);
+
         return ResponseEntity.ok(ApiResponse.<List<BookingImageResponseDto>>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(images)
+                .build());
+    }
+
+    /**
+     * DELETE /api/v1/bookings/{bookingId}/images/{imageId} - Xóa ảnh
+     */
+    @DeleteMapping("/{bookingId}/images/{imageId}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteBookingImage(
+            @PathVariable Long bookingId,
+            @PathVariable Long imageId) {
+
+        bookingService.deleteBookingImage(bookingId, imageId);
+
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .message("Image deleted successfully")
+                .build());
+    }
+
+    /**
+     * GET /api/v1/bookings/{bookingId}/images/checklist - Kiểm tra checklist ảnh
+     *
+     * @param bookingId ID booking
+     * @param imageType BEFORE_RENTAL hoặc AFTER_RENTAL
+     */
+    @GetMapping("/{bookingId}/images/checklist")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkImageChecklist(
+            @PathVariable Long bookingId,
+            @RequestParam("imageType") String imageType) {
+
+        BookingImage.ImageType type;
+        try {
+            type = BookingImage.ImageType.valueOf(imageType.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException("Invalid image type: " + imageType, HttpStatus.BAD_REQUEST);
+        }
+
+        Map<String, Object> checklist = bookingService.checkImageChecklist(bookingId, type);
+
+        return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(checklist)
+                .build());
+    }
+
+    /**
+     * GET /api/v1/bookings/image-types - Lấy danh sách loại ảnh
+     */
+    @GetMapping("/image-types")
+    public ResponseEntity<ApiResponse<List<String>>> getImageTypes() {
+        List<String> types = Arrays.stream(BookingImage.ImageType.values())
+                .map(Enum::name)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(ApiResponse.<List<String>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(types)
+                .build());
+    }
+
+    /**
+     * GET /api/v1/bookings/vehicle-components - Lấy danh sách hạng mục xe
+     */
+    @GetMapping("/vehicle-components")
+    public ResponseEntity<ApiResponse<List<String>>> getVehicleComponents() {
+        List<String> components = Arrays.stream(BookingImage.VehicleComponent.values())
+                .map(Enum::name)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(ApiResponse.<List<String>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(components)
                 .build());
     }
 

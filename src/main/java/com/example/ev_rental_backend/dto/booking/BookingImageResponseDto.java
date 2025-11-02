@@ -15,8 +15,10 @@ import java.time.LocalDateTime;
 public class BookingImageResponseDto {
 
     private Long imageId;
+    private Long bookingId;
     private String imageUrl;
     private BookingImage.ImageType imageType;
+    private String vehicleComponent;
     private String description;
     private LocalDateTime createdAt;
 }

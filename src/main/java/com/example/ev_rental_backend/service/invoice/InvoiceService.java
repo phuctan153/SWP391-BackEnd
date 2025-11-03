@@ -8,10 +8,7 @@ public interface InvoiceService {
     public InvoiceResponseDto getInvoiceById(Long invoiceId);
     public List<InvoiceResponseDto> getInvoicesByBookingId(Long bookingId);
     public InvoiceResponseDto createDepositInvoice(Long bookingId);
-    public InvoiceResponseDto createFinalInvoice(Long bookingId, CreateFinalInvoiceDto requestDto);
+    public InvoiceResponseDto createFinalInvoice(Long bookingId);
     public InvoiceDetailResponseDto addInvoiceDetail(Long invoiceId, CreateInvoiceDetailDto requestDto);
     public void deleteInvoiceDetail(Long invoiceId, Long detailId);
-
-    public List<InvoiceDetailResponseDto> addInvoiceDetailsFromPriceList(Long invoiceId, AddInvoiceDetailsRequest dto);
-    public InvoiceResponseDto recalculateInvoice(Long invoiceId);
 }

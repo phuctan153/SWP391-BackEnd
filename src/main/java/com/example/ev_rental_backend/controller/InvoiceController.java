@@ -70,47 +70,14 @@ public class InvoiceController {
     @PostMapping("/bookings/{bookingId}/invoices/final")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponseDto>> createFinalInvoice(
-            @PathVariable Long bookingId,
-            @Valid @RequestBody CreateFinalInvoiceDto requestDto) {
-        InvoiceResponseDto invoice = invoiceService.createFinalInvoice(bookingId, requestDto);
+            @PathVariable Long bookingId) {
+        InvoiceResponseDto invoice = invoiceService.createFinalInvoice(bookingId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<InvoiceResponseDto>builder()
                         .status("success")
                         .code(HttpStatus.CREATED.value())
                         .data(invoice)
                         .build());
-    }
-
-    @PostMapping("/invoices/{invoiceId}/details")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<ApiResponse<List<InvoiceDetailResponseDto>>> addInvoiceDetailsFromPriceList(
-            @PathVariable Long invoiceId,
-            @RequestBody AddInvoiceDetailsRequest dto) {
-
-        List<InvoiceDetailResponseDto> details = invoiceService.addInvoiceDetailsFromPriceList(invoiceId, dto);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.<List<InvoiceDetailResponseDto>>builder()
-                        .status("success")
-                        .code(HttpStatus.CREATED.value())
-                        .message("Thêm chi tiết phụ tùng hư hại vào hóa đơn thành công.")
-                        .data(details)
-                        .build());
-    }
-
-    @PutMapping("/invoices/{invoiceId}/recalculate")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<ApiResponse<InvoiceResponseDto>> recalculateInvoice(
-            @PathVariable Long invoiceId) {
-
-        InvoiceResponseDto invoice = invoiceService.recalculateInvoice(invoiceId);
-
-        return ResponseEntity.ok(ApiResponse.<InvoiceResponseDto>builder()
-                .status("success")
-                .code(HttpStatus.OK.value())
-                .message("Đã tính lại tổng tiền hóa đơn thành công.")
-                .data(invoice)
-                .build());
     }
 
 
@@ -120,21 +87,21 @@ public class InvoiceController {
 
     /**
      * POST /api/invoices/{invoiceId}/details - Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
-     * có thể xóa
+     *
      */
-//    @PostMapping("/invoices/{invoiceId}/details")
-//    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-//    public ResponseEntity<ApiResponse<InvoiceDetailResponseDto>> addInvoiceDetail(
-//            @PathVariable Long invoiceId,
-//            @Valid @RequestBody CreateInvoiceDetailDto requestDto) {
-//        InvoiceDetailResponseDto detail = invoiceService.addInvoiceDetail(invoiceId, requestDto);
-//        return ResponseEntity.status(HttpStatus.CREATED)
-//                .body(ApiResponse.<InvoiceDetailResponseDto>builder()
-//                        .status("success")
-//                        .code(HttpStatus.CREATED.value())
-//                        .data(detail)
-//                        .build());
-//    }
+    @PostMapping("/invoices/{invoiceId}/details")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<InvoiceDetailResponseDto>> addInvoiceDetail(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody CreateInvoiceDetailDto requestDto) {
+        InvoiceDetailResponseDto detail = invoiceService.addInvoiceDetail(invoiceId, requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.<InvoiceDetailResponseDto>builder()
+                        .status("success")
+                        .code(HttpStatus.CREATED.value())
+                        .data(detail)
+                        .build());
+    }
 
     /**
      * DELETE /api/invoices/{invoiceId}/details/{detailId} - Xóa dòng chi phí

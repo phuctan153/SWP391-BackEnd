@@ -107,58 +107,71 @@ public class InvoiceServiceImpl implements InvoiceService {
      * Tạo hóa đơn cuối (BR-27)
      */
     @Override
-    public InvoiceResponseDto createFinalInvoice(Long bookingId, CreateFinalInvoiceDto requestDto) {
-        // 🔍 Tìm booking theo ID
+    public InvoiceResponseDto createFinalInvoice(Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe có ID: " + bookingId));
 
-        // ✅ Chỉ được tạo hóa đơn cuối khi booking đã hoàn tất
         if (booking.getStatus() != Booking.Status.COMPLETED) {
             throw new CustomException("Chỉ có thể tạo hóa đơn cuối khi đơn đặt xe đã hoàn tất",
                     HttpStatus.BAD_REQUEST);
         }
 
-        // ✅ Kiểm tra xem booking này đã có hóa đơn cuối chưa
         boolean hasFinalInvoice = booking.getInvoices().stream()
                 .anyMatch(inv -> inv.getType() == Invoice.Type.FINAL);
         if (hasFinalInvoice) {
-            throw new CustomException("Đơn đặt xe này đã có hóa đơn cuối",
-                    HttpStatus.BAD_REQUEST);
+            throw new CustomException("Đơn đặt xe này đã có hóa đơn cuối", HttpStatus.BAD_REQUEST);
         }
 
-        // ✅ Lấy số tiền cọc đã thanh toán (nếu có)
         Double depositAmount = booking.getInvoices().stream()
                 .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
                 .findFirst()
                 .map(Invoice::getDepositAmount)
                 .orElse(0.0);
 
-        // ✅ Lấy giá trị threshold (ngưỡng tính theo giờ) từ bảng Policy, ví dụ: 4 giờ
+        // ✅ Lấy ngưỡng 4 giờ (policy)
         double thresholdHours = policyService.getPolicyValue(Policy.PolicyType.RENTAL_TIME_THRESHOLD_HOURS);
 
-        // ✅ Tính thời gian thuê xe thực tế (tính theo giờ)
-        long durationInHours = ChronoUnit.HOURS.between(
+        // 1️⃣ Tính tiền thuê chính (từ start -> end)
+        long plannedHours = ChronoUnit.HOURS.between(
                 booking.getStartDateTime(),
-                booking.getActualReturnTime()
+                booking.getEndDateTime()
         );
 
-        double totalAmount;
-        if (durationInHours < thresholdHours) {
-            // 🚗 Nếu thời gian thuê nhỏ hơn ngưỡng -> tính tiền theo giờ
-            totalAmount = durationInHours * booking.getPriceSnapshotPerHour();
+        double rentalCost;
+        if (plannedHours < thresholdHours) {
+            // Trường hợp cực hiếm — thuê rất ngắn (<4h)
+            rentalCost = plannedHours * booking.getPriceSnapshotPerHour();
         } else {
-            // 🕐 Nếu thời gian thuê vượt ngưỡng -> tính tiền theo ngày (làm tròn lên)
-            long days = (long) Math.ceil(durationInHours / 24.0);
-            totalAmount = days * booking.getPriceSnapshotPerDay();
+            long plannedDays = (long) Math.ceil(plannedHours / 24.0);
+            rentalCost = plannedDays * booking.getPriceSnapshotPerDay();
         }
 
-        // ✅ Tính thêm chi phí hư hại (nếu có)
+        // 2️⃣ Tính phụ phí trễ (nếu có)
+        long delayHours = ChronoUnit.HOURS.between(
+                booking.getEndDateTime(),
+                booking.getActualReturnTime()
+        );
+        delayHours = Math.max(delayHours, 0);
+
+        double lateFee = 0;
+        if (delayHours > 0) {
+            if (delayHours <= thresholdHours) {
+                // 🚗 Trễ <= 4h => tính thêm theo giờ
+                lateFee = delayHours * booking.getPriceSnapshotPerHour();
+            } else {
+                // 🕐 Trễ > 4h => tính thêm theo ngày
+                long extraDays = (long) Math.ceil(delayHours / 24.0);
+                lateFee = extraDays * booking.getPriceSnapshotPerDay();
+            }
+        }
+
+        // 3️⃣ Chi phí hư hại
         double damageCost = getDamageCost(booking);
 
-        // ✅ Cập nhật tổng tiền sau khi cộng chi phí hư hại
-        totalAmount += damageCost;
+        // 4️⃣ Tổng tiền cuối cùng
+        double totalAmount = rentalCost + lateFee + damageCost;
 
-        // ✅ Tạo hóa đơn cuối cùng (FINAL)
+        // 🧾 Tạo hóa đơn FINAL
         Invoice invoice = Invoice.builder()
                 .booking(booking)
                 .type(Invoice.Type.FINAL)
@@ -166,17 +179,17 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .totalAmount(totalAmount)
                 .status(Invoice.Status.UNPAID)
                 .paymentMethod(Invoice.PaymentMethod.CASH)
-                .notes("Hóa đơn cuối bao gồm tiền thuê và chi phí hư hại (nếu có)")
+                .notes("Bao gồm tiền thuê, phụ phí trễ và chi phí hư hại (nếu có)")
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
-        // ✅ Cập nhật tổng tiền cho booking
         booking.setTotalAmount(totalAmount);
         bookingRepository.save(booking);
 
         return mapToResponseDto(savedInvoice);
     }
+
 
     private static double getDamageCost(Booking booking) {
         double damageCost = 0.0;
@@ -259,86 +272,6 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         // Cập nhật tổng tiền invoice
         updateInvoiceTotalAmount(invoice);
-    }
-
-    @Override
-    @Transactional
-    public List<InvoiceDetailResponseDto> addInvoiceDetailsFromPriceList(Long invoiceId, AddInvoiceDetailsRequest dto) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
-
-        List<InvoiceDetail> createdDetails = new ArrayList<>();
-
-        for (Long priceId : dto.getPriceListIds()) {
-            PriceList price = priceListRepository.findById(priceId)
-                    .orElseThrow(() -> new NotFoundException("Không tìm thấy phụ tùng #" + priceId));
-
-            InvoiceDetail detail = InvoiceDetail.builder()
-                    .invoice(invoice)
-                    .priceList(price)
-                    .type(InvoiceDetail.LineType.SPAREPART)
-                    .description("Đền bù phụ tùng: " + price.getItemName())
-                    .quantity(1)
-                    .unitPrice(price.getUnitPrice())
-                    .lineTotal(price.getUnitPrice())
-                    .build();
-
-            createdDetails.add(detail);
-        }
-
-        invoiceDetailRepository.saveAll(createdDetails);
-
-        // Sau khi thêm detail, tự động tính lại tổng invoice
-        recalculateInvoice(invoiceId);
-
-        return createdDetails.stream()
-                .map(detail -> InvoiceDetailResponseDto.builder()
-                        .invoiceDetailId(detail.getInvoiceDetailId())
-                        .itemName(detail.getPriceList().getItemName())
-                        .description(detail.getDescription())
-                        .unitPrice(detail.getUnitPrice())
-                        .quantity(detail.getQuantity())
-                        .lineTotal(detail.getLineTotal())
-                        .build())
-                .toList();
-    }
-
-    @Override
-    @Transactional
-    public InvoiceResponseDto recalculateInvoice(Long invoiceId) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
-
-        Booking booking = invoice.getBooking();
-
-        // Tính chi phí thuê xe
-        double thresholdHours = policyService.getPolicyValue(Policy.PolicyType.RENTAL_TIME_THRESHOLD_HOURS);
-        long durationInHours = ChronoUnit.HOURS.between(
-                booking.getStartDateTime(), booking.getActualReturnTime()
-        );
-
-        double rentalCost = (durationInHours < thresholdHours)
-                ? durationInHours * booking.getPriceSnapshotPerHour()
-                : Math.ceil(durationInHours / 24.0) * booking.getPriceSnapshotPerDay();
-
-        // Cộng chi phí hư hại từ InvoiceDetail
-        double damageCost = invoiceDetailRepository
-                .findByInvoice_InvoiceId(invoiceId)
-                .stream()
-                .mapToDouble(detail -> detail.getLineTotal() != null ? detail.getLineTotal() : 0.0)
-                .sum();
-
-        // Tổng tiền mới
-        double newTotal = rentalCost + damageCost;
-
-        invoice.setTotalAmount(newTotal);
-        invoiceRepository.save(invoice);
-
-        // Cập nhật Booking tổng tiền
-        booking.setTotalAmount(newTotal);
-        bookingRepository.save(booking);
-
-        return mapToResponseDto(invoice);
     }
 
 

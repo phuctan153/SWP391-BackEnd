@@ -19,8 +19,8 @@ public class SwaggerConfig {
         return new OpenAPI()
                 .addServersItem(new Server()
                         .url("http://localhost:8080")
-                        .description("LocalTunnel Secure Server"))
-                .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
+                        .description("Local Server for Swagger UI"))
+                        .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new io.swagger.v3.oas.models.Components()
                         .addSecuritySchemes(securitySchemeName,
                                 new SecurityScheme()

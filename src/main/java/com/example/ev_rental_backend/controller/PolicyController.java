@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.entity.Policy;
+import com.example.ev_rental_backend.entity.Policy.PolicyType;
 import com.example.ev_rental_backend.service.policy.PolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,7 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/policies")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 public class PolicyController {
 
     private final PolicyService policyService;
@@ -35,7 +36,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Lấy chi tiết 1 policy
+    // 🔹 Lấy policy theo ID
     // ===========================================================
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
@@ -50,7 +51,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Tạo policy mới (ACTIVE -> deactivate policy cũ)
+    // 🔹 Tạo mới policy
     // ===========================================================
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -65,7 +66,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Cập nhật policy (update chi tiết)
+    // 🔹 Cập nhật policy
     // ===========================================================
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -83,7 +84,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Xóa mềm (đổi sang INACTIVE)
+    // 🔹 Xóa mềm (INACTIVE)
     // ===========================================================
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -93,22 +94,22 @@ public class PolicyController {
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(deactivated)
-                .message("Chính sách #" + id + " đã được chuyển sang trạng thái INACTIVE")
+                .message("Chính sách #" + id + " đã được chuyển sang INACTIVE")
                 .build());
     }
 
     // ===========================================================
-    // 🔹 Lấy policy đang hoạt động hiện tại
+    // 🔹 Lấy policy active theo loại
     // ===========================================================
-    @GetMapping("/active")
+    @GetMapping("/active/{type}")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
-    public ResponseEntity<ApiResponse<Policy>> getActivePolicy() {
-        Policy active = policyService.getActivePolicy();
+    public ResponseEntity<ApiResponse<Policy>> getActivePolicyByType(@PathVariable PolicyType type) {
+        Policy active = policyService.getActivePolicyByType(type);
         return ResponseEntity.ok(ApiResponse.<Policy>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(active)
-                .message("Chính sách hiện tại đang hoạt động")
+                .message("Chính sách " + type + " đang hoạt động hiện tại")
                 .build());
     }
 }

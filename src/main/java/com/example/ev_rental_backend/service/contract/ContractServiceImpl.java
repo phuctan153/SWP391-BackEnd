@@ -426,12 +426,13 @@ public class ContractServiceImpl implements ContractService{
         // 📝 Cập nhật hợp đồng
         contract.setStatus(Contract.Status.FULLY_SIGNED);
         contract.setRenterSignedAt(LocalDateTime.now());
+        contractRepository.save(contract);
 
         // 🧩 Regenerate lại PDF (FULLY_SIGNED)
         String newFileUrl = pdfGeneratorService.generateContractFile(contract);
         contract.setContractFileUrl(newFileUrl);
-
         contractRepository.save(contract);
+
 
         Renter renter = booking.getRenter();
 
@@ -477,6 +478,24 @@ public class ContractServiceImpl implements ContractService{
                         .toList())
                 .build();
     }
+
+    @Override
+    public ContractResponseDTO getContractById(Long contractId) {
+        return contractRepository.findById(contractId)
+                .map(contract -> ContractResponseDTO.builder()
+                        .contractId(contract.getContractId())
+                        .bookingId(contract.getBooking() != null ? contract.getBooking().getBookingId() : null)
+                        // ✅ Chuyển enum sang String an toàn
+                        .contractType(contract.getContractType() != null ? contract.getContractType().name() : null)
+                        .contractFileUrl(contract.getContractFileUrl())
+                        .status(contract.getStatus() != null ? contract.getStatus().name() : null)
+                        .contractDate(contract.getContractDate())
+                        .createdAt(contract.getCreatedAt())
+                        .updatedAt(contract.getUpdatedAt())
+                        .build())
+                .orElse(null);
+    }
+
 
 
 

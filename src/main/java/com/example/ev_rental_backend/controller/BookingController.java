@@ -5,12 +5,15 @@ import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.entity.Admin;
 import com.example.ev_rental_backend.entity.Booking;
+import com.example.ev_rental_backend.entity.Policy;
+import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.repository.AdminRepository;
 import com.example.ev_rental_backend.entity.BookingImage;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.service.booking.BookingService;
 import com.example.ev_rental_backend.service.notification.NotificationService;
 import com.example.ev_rental_backend.service.policy.PolicyService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -102,7 +105,7 @@ public class BookingController {
         }
         else if (auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().contains("RENTER"))) {
 
-            double refundPercent = policyService.getRefundPercentForRenter();
+            double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
 
             //gửi thông báo cho admin kích hoạt hoàn tiền
             Admin admin = adminRepository.findFirstByStatus(Admin.Status.ACTIVE)
@@ -132,11 +135,9 @@ public class BookingController {
     @PreAuthorize("hasRole('RENTER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> confirmCancelBooking(@PathVariable Long bookingId) {
         // ✅ Lấy phần trăm hoàn tiền từ policy
-        double refundPercent = policyService.getRefundPercentForRenter();
-
+        double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
         // ✅ Có thể mở rộng: lấy thêm thông tin tiền cọc từ Policy hoặc PriceList
-        double depositAmount = policyService.getDepositAmountForBooking(bookingId);
-
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
         Map<String, Object> data = getStringObjectMap(bookingId, depositAmount, refundPercent);
 
         return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
@@ -362,9 +363,74 @@ public class BookingController {
     }
 
     // ==================== 5.4. Return Process ====================
+    //renter thông báo trả xe
+    @PutMapping("/{bookingId}/notify-return")
+    @PreAuthorize("hasRole('RENTER')")
+    public ResponseEntity<ApiResponse<String>> notifyReturnRequest(
+            @PathVariable Long bookingId,
+            HttpServletRequest request) {
+
+        // ✅ Lấy header Authorization
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new CustomException("Thiếu hoặc sai định dạng Authorization header", HttpStatus.UNAUTHORIZED);
+        }
+
+        // ✅ Lấy token từ header
+        String token = authHeader.substring(7);
+
+        // ✅ Kiểm tra token hợp lệ
+        if (!jwtTokenUtil.isTokenValid(token)) {
+            throw new CustomException("Token không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED);
+        }
+
+        // ✅ Lấy email từ token
+        String renterEmail = jwtTokenUtil.extractEmail(token);
+
+        // ✅ Gửi thông báo tới tất cả staff của trạm
+        bookingService.notifyStationStaffAboutReturn(bookingId, renterEmail);
+
+        return ResponseEntity.ok(ApiResponse.<String>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .message("Thông báo đã được gửi đến các nhân viên của trạm.")
+                .data("Return notification sent successfully.")
+                .build());
+    }
+
+
+    //staff handle cái trả xe đó
+    @PutMapping("/bookings/{bookingId}/return")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<BookingResponseDto>> confirmVehicleReturn(
+            @PathVariable Long bookingId,
+            HttpServletRequest request) {
+
+        // ✅ Lấy email từ token
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new CustomException("Thiếu hoặc sai định dạng Authorization header", HttpStatus.UNAUTHORIZED);
+        }
+
+        String token = authHeader.substring(7);
+        String staffEmail = jwtTokenUtil.extractEmail(token);
+
+        // ✅ Gọi service kèm email staff
+        BookingResponseDto updatedBooking = bookingService.confirmVehicleReturn(bookingId, staffEmail);
+
+        return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .message("Xác nhận trả xe thành công, thời gian trả được ghi nhận.")
+                .data(updatedBooking)
+                .build());
+    }
+
+
 
     /**
      * POST /api/bookings/{bookingId}/return - Trả xe (BR-11, BR-12, BR-13, BR-14, BR-15, BR-26, BR-27)
+     * //có thể xóa
      */
     @PostMapping("/{bookingId}/return")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
@@ -427,5 +493,33 @@ public class BookingController {
                 .data(rating)
                 .build());
     }
+
+    /**
+     * GET /api/bookings/admin/all - Admin xem tất cả booking trong hệ thống
+     */
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<BookingResponseDto>>> getAllBookingsForAdmin() {
+        try {
+            List<BookingResponseDto> bookings = bookingService.getAllBookings();
+
+            return ResponseEntity.ok(ApiResponse.<List<BookingResponseDto>>builder()
+                    .status("success")
+                    .code(HttpStatus.OK.value())
+                    .message("Danh sách toàn bộ booking trong hệ thống (Admin truy cập)")
+                    .data(bookings)
+                    .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<List<BookingResponseDto>>builder()
+                            .status("error")
+                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .message("Lỗi khi lấy danh sách booking: " + e.getMessage())
+                            .build());
+        }
+    }
+
+
+
 
 }

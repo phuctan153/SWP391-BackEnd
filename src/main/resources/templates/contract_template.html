@@ -142,7 +142,8 @@
         <p><b>Người thuê:</b><br/>
             <#if contractStatus == "FULLY_SIGNED">
             ✅ ĐÃ KÝ<br/>
-            <small>(Ngày ký: ${renterSignedAt?string("dd/MM/yyyy")})</small>
+            <small>(Ngày ký: ${renterSignedAt}
+                )</small>
             <#elseif contractStatus == "ADMIN_SIGNED">
             ⏳ CHỜ NGƯỜI THUÊ KÝ
             <#else>

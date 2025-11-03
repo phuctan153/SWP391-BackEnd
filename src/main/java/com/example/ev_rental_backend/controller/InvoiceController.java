@@ -51,18 +51,18 @@ public class InvoiceController {
      * POST /api/bookings/{bookingId}/invoices/deposit - Tạo hóa đơn đặt cọc (BR-06, BR-23)
      */
     @PostMapping("/bookings/{bookingId}/invoices/deposit")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponseDto>> createDepositInvoice(
-            @PathVariable Long bookingId,
-            @Valid @RequestBody CreateDepositInvoiceDto requestDto) {
-        InvoiceResponseDto invoice = invoiceService.createDepositInvoice(bookingId, requestDto);
+            @PathVariable Long bookingId) {
+        InvoiceResponseDto invoice = invoiceService.createDepositInvoice(bookingId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<InvoiceResponseDto>builder()
                         .status("success")
                         .code(HttpStatus.CREATED.value())
                         .data(invoice)
+                        .message("Tạo hóa đơn tiền cọc thành công")
                         .build());
     }
+
 
     /**
      * POST /api/bookings/{bookingId}/invoices/final - Tạo hóa đơn cuối (BR-27)
@@ -70,9 +70,8 @@ public class InvoiceController {
     @PostMapping("/bookings/{bookingId}/invoices/final")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceResponseDto>> createFinalInvoice(
-            @PathVariable Long bookingId,
-            @Valid @RequestBody CreateFinalInvoiceDto requestDto) {
-        InvoiceResponseDto invoice = invoiceService.createFinalInvoice(bookingId, requestDto);
+            @PathVariable Long bookingId) {
+        InvoiceResponseDto invoice = invoiceService.createFinalInvoice(bookingId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<InvoiceResponseDto>builder()
                         .status("success")
@@ -81,10 +80,14 @@ public class InvoiceController {
                         .build());
     }
 
+
+
+
     // 7.2. Invoice Details
 
     /**
      * POST /api/invoices/{invoiceId}/details - Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
+     *
      */
     @PostMapping("/invoices/{invoiceId}/details")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")

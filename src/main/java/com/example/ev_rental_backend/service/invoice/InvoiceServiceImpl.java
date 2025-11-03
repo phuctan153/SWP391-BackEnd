@@ -8,11 +8,16 @@ import com.example.ev_rental_backend.repository.BookingRepository;
 import com.example.ev_rental_backend.repository.InvoiceDetailRepository;
 import com.example.ev_rental_backend.repository.InvoiceRepository;
 import com.example.ev_rental_backend.repository.PriceListRepository;
+import com.example.ev_rental_backend.service.policy.PolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,6 +31,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final BookingRepository bookingRepository;
     private final InvoiceDetailRepository invoiceDetailRepository;
     private final PriceListRepository priceListRepository;
+    private final PolicyService policyService;
 
     /**
      * Lấy chi tiết hóa đơn
@@ -51,84 +57,157 @@ public class InvoiceServiceImpl implements InvoiceService {
     /**
      * Tạo hóa đơn đặt cọc (BR-06, BR-23)
      */
-    public InvoiceResponseDto createDepositInvoice(Long bookingId, CreateDepositInvoiceDto requestDto) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
+    @Override
+    public InvoiceResponseDto createDepositInvoice(Long bookingId) {
+        // ✅ Lấy email renter hiện tại từ token trong SecurityContext
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String renterEmail = authentication.getName(); // do JwtAuthFilter đã set email ở đây
 
-        // Kiểm tra booking phải ở trạng thái RESERVED
-        if (booking.getStatus() != Booking.Status.RESERVED) {
-            throw new CustomException("Can only create deposit invoice for RESERVED booking",
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy booking với ID: " + bookingId));
+
+        // ✅ Kiểm tra booking có thuộc renter hiện tại không
+        if (!booking.getRenter().getEmail().equalsIgnoreCase(renterEmail)) {
+            throw new CustomException("Bạn không có quyền tạo hóa đơn cho booking này", HttpStatus.FORBIDDEN);
+        }
+
+        // ✅ (Phần còn lại giữ nguyên)
+        if (booking.getStatus() != Booking.Status.PENDING &&
+                booking.getStatus() != Booking.Status.RESERVED) {
+            throw new CustomException("Chỉ có thể tạo hóa đơn đặt cọc cho booking ở trạng thái PENDING hoặc RESERVED",
                     HttpStatus.BAD_REQUEST);
         }
 
-        // Kiểm tra xem đã có deposit invoice chưa
         boolean hasDepositInvoice = booking.getInvoices().stream()
                 .anyMatch(inv -> inv.getType() == Invoice.Type.DEPOSIT);
 
         if (hasDepositInvoice) {
-            throw new CustomException("Deposit invoice already exists for this booking",
-                    HttpStatus.BAD_REQUEST);
+            throw new CustomException("Booking này đã có hóa đơn đặt cọc", HttpStatus.BAD_REQUEST);
         }
 
-        // Tạo deposit invoice
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
+
         Invoice invoice = Invoice.builder()
                 .booking(booking)
                 .type(Invoice.Type.DEPOSIT)
-                .depositAmount(requestDto.getDepositAmount())
-                .totalAmount(requestDto.getDepositAmount())
+                .depositAmount(depositAmount)
+                .totalAmount(depositAmount)
                 .status(Invoice.Status.UNPAID)
                 .paymentMethod(Invoice.PaymentMethod.MOMO)
-                .notes(requestDto.getNotes())
+                .notes("Deposit invoice automatically generated based on active policy.")
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
         return mapToResponseDto(savedInvoice);
     }
+
+
 
     /**
      * Tạo hóa đơn cuối (BR-27)
      */
-    public InvoiceResponseDto createFinalInvoice(Long bookingId, CreateFinalInvoiceDto requestDto) {
+    @Override
+    public InvoiceResponseDto createFinalInvoice(Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe có ID: " + bookingId));
 
-        // Kiểm tra booking phải ở trạng thái COMPLETED
-        if (booking.getStatus() != Booking.Status.IN_USE) {
-            throw new CustomException("Can only create final invoice for COMPLETED booking",
+        if (booking.getStatus() != Booking.Status.COMPLETED) {
+            throw new CustomException("Chỉ có thể tạo hóa đơn cuối khi đơn đặt xe đã hoàn tất",
                     HttpStatus.BAD_REQUEST);
         }
 
-        // Kiểm tra xem đã có final invoice chưa
         boolean hasFinalInvoice = booking.getInvoices().stream()
                 .anyMatch(inv -> inv.getType() == Invoice.Type.FINAL);
-
         if (hasFinalInvoice) {
-            throw new CustomException("Final invoice already exists for this booking",
-                    HttpStatus.BAD_REQUEST);
+            throw new CustomException("Đơn đặt xe này đã có hóa đơn cuối", HttpStatus.BAD_REQUEST);
         }
 
-        // Lấy số tiền đã đặt cọc
         Double depositAmount = booking.getInvoices().stream()
-                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT
-                        && inv.getStatus() == Invoice.Status.PAID)
+                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
                 .findFirst()
                 .map(Invoice::getDepositAmount)
                 .orElse(0.0);
 
-        // Tạo final invoice
+        // ✅ Lấy ngưỡng 4 giờ (policy)
+        double thresholdHours = policyService.getPolicyValue(Policy.PolicyType.RENTAL_TIME_THRESHOLD_HOURS);
+
+        // 1️⃣ Tính tiền thuê chính (từ start -> end)
+        long plannedHours = ChronoUnit.HOURS.between(
+                booking.getStartDateTime(),
+                booking.getEndDateTime()
+        );
+
+        double rentalCost;
+        if (plannedHours < thresholdHours) {
+            // Trường hợp cực hiếm — thuê rất ngắn (<4h)
+            rentalCost = plannedHours * booking.getPriceSnapshotPerHour();
+        } else {
+            long plannedDays = (long) Math.ceil(plannedHours / 24.0);
+            rentalCost = plannedDays * booking.getPriceSnapshotPerDay();
+        }
+
+        // 2️⃣ Tính phụ phí trễ (nếu có)
+        long delayHours = ChronoUnit.HOURS.between(
+                booking.getEndDateTime(),
+                booking.getActualReturnTime()
+        );
+        delayHours = Math.max(delayHours, 0);
+
+        double lateFee = 0;
+        if (delayHours > 0) {
+            if (delayHours <= thresholdHours) {
+                // 🚗 Trễ <= 4h => tính thêm theo giờ
+                lateFee = delayHours * booking.getPriceSnapshotPerHour();
+            } else {
+                // 🕐 Trễ > 4h => tính thêm theo ngày
+                long extraDays = (long) Math.ceil(delayHours / 24.0);
+                lateFee = extraDays * booking.getPriceSnapshotPerDay();
+            }
+        }
+
+        // 3️⃣ Chi phí hư hại
+        double damageCost = getDamageCost(booking);
+
+        // 4️⃣ Tổng tiền cuối cùng
+        double totalAmount = rentalCost + lateFee + damageCost;
+
+        // 🧾 Tạo hóa đơn FINAL
         Invoice invoice = Invoice.builder()
                 .booking(booking)
                 .type(Invoice.Type.FINAL)
                 .depositAmount(depositAmount)
-                .totalAmount(requestDto.getTotalAmount())
+                .totalAmount(totalAmount)
                 .status(Invoice.Status.UNPAID)
                 .paymentMethod(Invoice.PaymentMethod.CASH)
-                .notes(requestDto.getNotes())
+                .notes("Bao gồm tiền thuê, phụ phí trễ và chi phí hư hại (nếu có)")
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        booking.setTotalAmount(totalAmount);
+        bookingRepository.save(booking);
+
         return mapToResponseDto(savedInvoice);
     }
+
+
+    private static double getDamageCost(Booking booking) {
+        double damageCost = 0.0;
+
+        // Duyệt qua tất cả các hóa đơn thuộc booking này
+        for (Invoice inv : booking.getInvoices()) {
+            if (inv.getInvoiceDetails() != null) {
+                for (InvoiceDetail detail : inv.getInvoiceDetails()) {
+                    // ✅ Cộng những dòng chi tiết có tổng tiền hợp lệ (lineTotal > 0)
+                    if (detail.getLineTotal() != null && detail.getLineTotal() > 0) {
+                        damageCost += detail.getLineTotal();
+                    }
+                }
+            }
+        }
+        return damageCost;
+    }
+
 
     /**
      * Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
@@ -194,6 +273,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         // Cập nhật tổng tiền invoice
         updateInvoiceTotalAmount(invoice);
     }
+
 
     // Helper methods
 

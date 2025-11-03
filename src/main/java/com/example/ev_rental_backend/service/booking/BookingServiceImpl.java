@@ -5,6 +5,7 @@ import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
+import com.example.ev_rental_backend.mapper.BookingMapper;
 import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.notification.NotificationServiceImpl;
 import com.example.ev_rental_backend.entity.Booking;
@@ -13,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 public class BookingServiceImpl implements BookingService {
 
     private final BookingRepository bookingRepository;
+
     private final RenterRepository renterRepository;
     private final VehicleRepository vehicleRepository;
     private final StaffRepository staffRepository;
@@ -47,6 +48,7 @@ public class BookingServiceImpl implements BookingService {
     private final NotificationServiceImpl notificationService;
     private final JavaMailSender mailSender;
     private final StaffStationRepository staffStationRepository;
+    private final BookingMapper bookingMapper;
 
     // ==================== 5.1. Booking Creation ====================
     @Override
@@ -148,6 +150,81 @@ public class BookingServiceImpl implements BookingService {
                     .build();
         }).toList();
     }
+
+    @Override
+    public List<BookingResponseDto> getAllBookings() {
+        List<Booking> bookings = bookingRepository.findAll();
+        return bookings.stream()
+                .map(bookingMapper::toBookingResponseDto)
+                .toList();
+    }
+
+    @Override
+    public void notifyStationStaffAboutReturn(Long bookingId, String renterEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe #" + bookingId));
+
+        // ✅ Xác minh renter đang gọi đúng booking của họ
+        if (!booking.getRenter().getEmail().equalsIgnoreCase(renterEmail)) {
+            throw new CustomException("Bạn không có quyền thao tác với đơn đặt xe này",
+                    HttpStatus.FORBIDDEN);
+        }
+
+        // ✅ Lấy trạm xe từ vehicle
+        Vehicle vehicle = booking.getVehicle();
+        if (vehicle == null || vehicle.getStation() == null) {
+            throw new CustomException("Không xác định được trạm xe cho đơn đặt này",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        Station station = vehicle.getStation();
+
+        // ✅ Gửi thông báo cho tất cả nhân viên của trạm
+        notificationService.notifyAllStaffInStation(station, booking);
+    }
+
+
+    @Override
+    public BookingResponseDto confirmVehicleReturn(Long bookingId, String staffEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe có ID: " + bookingId));
+
+        // ✅ Kiểm tra trạng thái
+        if (booking.getStatus() != Booking.Status.IN_USE) {
+            throw new CustomException("Chỉ có thể xác nhận trả xe khi xe đang được sử dụng (IN_USE)",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // ✅ Lấy thông tin staff đang xử lý
+        Staff staff = staffRepository.findByEmail(staffEmail)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy nhân viên với email: " + staffEmail));
+
+        // ✅ Cập nhật người xử lý và thời gian trả xe thực tế
+        booking.setStaff(staff);
+        booking.setActualReturnTime(LocalDateTime.now());
+        booking.setStatus(Booking.Status.COMPLETED);
+
+        // ✅ Lưu database
+        Booking savedBooking = bookingRepository.save(booking);
+
+        return mapToBookingResponseDto(savedBooking);
+    }
+
+
+    private BookingResponseDto mapToBookingResponseDto(Booking booking) {
+        return BookingResponseDto.builder()
+                .bookingId(booking.getBookingId())
+                .renterName(booking.getRenter() != null ? booking.getRenter().getFullName() : null)
+                .vehicleName(booking.getVehicle() != null ? booking.getVehicle().getVehicleName(): null)
+                .startDateTime(booking.getStartDateTime())
+                .actualReturnTime(booking.getActualReturnTime())
+                .status(booking.getStatus())
+                .totalAmount(booking.getTotalAmount())
+                .build();
+    }
+
+
+
 
     @Override
     public Booking getBookingEntityById(Long bookingId) {

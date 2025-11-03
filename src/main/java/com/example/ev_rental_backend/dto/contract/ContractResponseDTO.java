@@ -28,6 +28,10 @@ public class ContractResponseDTO {
     private LocalDateTime adminSignedAt;
     private LocalDateTime renterSignedAt;
 
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

@@ -12,7 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/admin/vehicles")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 @RequiredArgsConstructor
 public class VehicleAdminController {
     private final VehicleService vehicleService;

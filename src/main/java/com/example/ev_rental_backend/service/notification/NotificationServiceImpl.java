@@ -1,8 +1,6 @@
 package com.example.ev_rental_backend.service.notification;
 
-import com.example.ev_rental_backend.entity.Booking;
-import com.example.ev_rental_backend.entity.Notification;
-import com.example.ev_rental_backend.entity.StaffStation;
+import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.repository.NotificationRepository;
 import com.example.ev_rental_backend.repository.StaffStationRepository;
 import lombok.RequiredArgsConstructor;
@@ -235,4 +233,35 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.save(notification);
         log.info("New booking notification sent to staff {}", staffId);
     }
+
+    @Override
+    public void notifyAllStaffInStation(Station station, Booking booking) {
+        // 🔹 Lấy danh sách nhân viên ACTIVE trong trạm
+        List<StaffStation> staffStations =
+                staffStationRepository.findByStationAndStatus(station, StaffStation.Status.ACTIVE);
+
+        if (staffStations.isEmpty()) {
+            log.warn("⚠️ Không có nhân viên ACTIVE nào trong trạm {}", station.getName());
+            return;
+        }
+
+        // 🔹 Gửi thông báo đến từng nhân viên
+        for (StaffStation ss : staffStations) {
+            Staff staff = ss.getStaff(); // Lấy thông tin nhân viên thực tế
+
+            String message = String.format(
+                    "🔔 Renter %s vừa gửi yêu cầu trả xe %s tại trạm %s.",
+                    booking.getRenter().getFullName(),
+                    booking.getVehicle().getVehicleName(),
+                    station.getName()
+            );
+
+            // 💬 Hiện tại demo log — có thể thay bằng WebSocket hoặc Firebase
+            log.info("📩 Gửi thông báo đến Staff [{} - {}]: {}",
+                    staff.getStaffId(),
+                    staff.getFullName(),
+                    message);
+        }
+    }
+
 }

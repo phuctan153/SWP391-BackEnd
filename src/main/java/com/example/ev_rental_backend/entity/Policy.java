@@ -1,11 +1,7 @@
 package com.example.ev_rental_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,42 +17,29 @@ public class Policy {
     @Column(name = "policy_id")
     private Long policyId;
 
-    @Column(name = "policy_name", nullable = false, length = 100)
-    private String policyName;
+    // 🔸 Enum mô tả loại quy định
+    @Enumerated(EnumType.STRING)
+    @Column(name = "policy_type", nullable = false, length = 50)
+    private PolicyType policyType;
 
+    // 🔸 Mô tả ngắn
     @Column(name = "description", length = 255)
     private String description;
 
-    // 🔸 Phần trăm hoàn tiền khi renter hủy
-    @Column(name = "refund_percent_renter", nullable = false)
-    private Double refundPercentRenter;
+    // 🔸 Giá trị cụ thể của quy định (có thể là % hoặc số tiền)
+    @Column(name = "value", nullable = false)
+    private Double value;
 
-    // 🔸 Phần trăm hoàn tiền khi admin hủy
-    @Column(name = "refund_percent_admin", nullable = false)
-    private Double refundPercentAdmin;
+    // 🔸 Phạm vi áp dụng
+    @Enumerated(EnumType.STRING)
+    @Column(name = "applied_scope", nullable = false, length = 50)
+    private AppliedScope appliedScope;
 
-    // 🔸 Số ngày tối thiểu được đặt trước
-    @Column(name = "min_days_before_booking", nullable = false)
-    private Integer minDaysBeforeBooking;
-
-    // 🔸 Số ngày tối đa được đặt trước
-    @Column(name = "max_days_before_booking", nullable = false)
-    private Integer maxDaysBeforeBooking;
-
-    // 🔸 Tiền cọc
-    @Column(name = "deposit_amount", nullable = false)
-    private Double depositAmount;
-
-    // ✅ Cho phép nhiều policy hoạt động song song
+    // 🔸 Trạng thái policy
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private Status status;
 
-    // ✅ Có thể gắn policy này cho loại xe hoặc trạm trong tương lai
-    @Column(name = "applied_scope", length = 50)
-    private String appliedScope; // VD: "GLOBAL", "STATION", "VEHICLE_TYPE"
-
-    // ✅ Ngày tạo & cập nhật
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -66,7 +49,8 @@ public class Policy {
     @PrePersist
     public void onCreate() {
         this.createdAt = LocalDateTime.now();
-        this.status = (this.status == null) ? Status.ACTIVE : this.status;
+        if (this.status == null) this.status = Status.ACTIVE;
+        if (this.appliedScope == null) this.appliedScope = AppliedScope.GLOBAL;
     }
 
     @PreUpdate
@@ -74,8 +58,23 @@ public class Policy {
         this.updatedAt = LocalDateTime.now();
     }
 
+    // 🔹 ENUM: loại quy định
+    public enum PolicyType {
+        REFUND_PERCENT_RENTER,   // phần trăm hoàn tiền khi renter hủy
+        REFUND_PERCENT_ADMIN,    // phần trăm hoàn tiền khi admin hủy
+        MIN_DAYS_BEFORE_BOOKING, // số ngày tối thiểu được đặt
+        MAX_DAYS_BEFORE_BOOKING, // số ngày tối đa được đặt
+        DEPOSIT_AMOUNT,        // tiền cọc
+        RENTAL_TIME_THRESHOLD_HOURS
+    }
+
+    // 🔹 ENUM: phạm vi áp dụng
+    public enum AppliedScope {
+        GLOBAL, STATION, VEHICLE_TYPE
+    }
+
+    // 🔹 ENUM: trạng thái
     public enum Status {
-        ACTIVE,
-        INACTIVE
+        ACTIVE, INACTIVE
     }
 }

@@ -65,7 +65,7 @@ public class Policy {
         MIN_DAYS_BEFORE_BOOKING, // số ngày tối thiểu được đặt
         MAX_DAYS_BEFORE_BOOKING, // số ngày tối đa được đặt
         DEPOSIT_AMOUNT,        // tiền cọc
-        RENTAL_TIME_THRESHOLD_HOURS
+        RENTAL_TIME_THRESHOLD_HOURS,
     }
 
     // 🔹 ENUM: phạm vi áp dụng

@@ -19,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -208,24 +210,31 @@ public class InvoiceServiceImpl implements InvoiceService {
         return damageCost;
     }
 
-
+    // 7.2. Invoice Details
     /**
      * Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
      */
+    @Transactional
     public InvoiceDetailResponseDto addInvoiceDetail(Long invoiceId, CreateInvoiceDetailDto requestDto) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
 
-        // Kiểm tra invoice chưa được thanh toán
+        // Kiểm tra invoice chưa được thanh toán hoàn toàn
         if (invoice.getStatus() == Invoice.Status.PAID) {
             throw new CustomException("Cannot add details to paid invoice",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        // Kiểm tra invoice phải là FINAL (không cho thêm chi phí vào invoice DEPOSIT)
+        if (invoice.getType() != Invoice.Type.FINAL) {
+            throw new CustomException("Can only add details to FINAL invoice",
                     HttpStatus.BAD_REQUEST);
         }
 
         PriceList priceList = null;
         if (requestDto.getPriceListId() != null) {
             priceList = priceListRepository.findById(requestDto.getPriceListId())
-                    .orElseThrow(() -> new NotFoundException("Price list not found"));
+                    .orElseThrow(() -> new NotFoundException("Price list not found with id: " + requestDto.getPriceListId()));
         }
 
         // Tạo invoice detail
@@ -238,10 +247,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .unitPrice(requestDto.getUnitPrice())
                 .build();
 
+        // Tính lineTotal sẽ được tự động tính trong @PrePersist
         InvoiceDetail savedDetail = invoiceDetailRepository.save(detail);
 
-        // Cập nhật tổng tiền invoice
-        updateInvoiceTotalAmount(invoice);
+        // ✅ CỘNG THÊM vào tổng tiền invoice (không ghi đè)
+        Double lineTotal = savedDetail.getLineTotal() != null ? savedDetail.getLineTotal() : 0.0;
+        addAmountToInvoice(invoice, lineTotal);
+
+        log.info("Added invoice detail: {} to invoice {}, line total: {}, new invoice total: {}",
+                savedDetail.getInvoiceDetailId(), invoiceId, lineTotal, invoice.getTotalAmount());
 
         return mapToDetailResponseDto(savedDetail);
     }
@@ -249,6 +263,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     /**
      * Xóa dòng chi phí
      */
+    @Transactional
     public void deleteInvoiceDetail(Long invoiceId, Long detailId) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
@@ -268,26 +283,203 @@ public class InvoiceServiceImpl implements InvoiceService {
                     HttpStatus.BAD_REQUEST);
         }
 
+        // Lưu lại lineTotal trước khi xóa
+        Double lineTotal = detail.getLineTotal() != null ? detail.getLineTotal() : 0.0;
+
+        // Xóa detail
         invoiceDetailRepository.delete(detail);
 
-        // Cập nhật tổng tiền invoice
-        updateInvoiceTotalAmount(invoice);
+        // ✅ TRỪ số tiền này khỏi invoice total
+        addAmountToInvoice(invoice, -lineTotal);
+
+        log.info("Deleted invoice detail: {} from invoice {}, line total deducted: {}, new invoice total: {}",
+                detailId, invoiceId, lineTotal, invoice.getTotalAmount());
     }
 
+    /**
+     * Cập nhật dòng chi phí
+     */
+    @Transactional
+    public InvoiceDetailResponseDto updateInvoiceDetail(Long invoiceId, Long detailId,
+                                                        UpdateInvoiceDetailDto requestDto) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
 
-    // Helper methods
+        InvoiceDetail detail = invoiceDetailRepository.findById(detailId)
+                .orElseThrow(() -> new NotFoundException("Invoice detail not found with id: " + detailId));
 
-    private void updateInvoiceTotalAmount(Invoice invoice) {
-        if (invoice.getLines() == null) {
-            invoice.setLines(new ArrayList<>());
+        // Kiểm tra detail có thuộc invoice này không
+        if (!detail.getInvoice().getInvoiceId().equals(invoiceId)) {
+            throw new CustomException("Invoice detail does not belong to this invoice",
+                    HttpStatus.BAD_REQUEST);
         }
 
-        Double detailsTotal = invoice.getLines().stream()
-                .mapToDouble(detail -> detail.getLineTotal() != null ? detail.getLineTotal() : 0.0)
-                .sum();
+        if (invoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Cannot update details of paid invoice",
+                    HttpStatus.BAD_REQUEST);
+        }
 
-        invoice.setTotalAmount(detailsTotal);
+        // Lưu lại lineTotal cũ để tính chênh lệch
+        Double oldLineTotal = detail.getLineTotal() != null ? detail.getLineTotal() : 0.0;
+
+        // Cập nhật các field
+        if (requestDto.getQuantity() != null) {
+            detail.setQuantity(requestDto.getQuantity());
+        }
+        if (requestDto.getUnitPrice() != null) {
+            detail.setUnitPrice(requestDto.getUnitPrice());
+        }
+        if (requestDto.getDescription() != null) {
+            detail.setDescription(requestDto.getDescription());
+        }
+
+        // Tính lại lineTotal (sẽ được tự động tính trong @PreUpdate)
+        InvoiceDetail updatedDetail = invoiceDetailRepository.save(detail);
+
+        // ✅ Cập nhật tổng tiền invoice: trừ cũ, cộng mới
+        Double newLineTotal = updatedDetail.getLineTotal() != null ? updatedDetail.getLineTotal() : 0.0;
+        Double difference = newLineTotal - oldLineTotal;
+
+        if (difference != 0) {
+            addAmountToInvoice(invoice, difference);
+        }
+
+        log.info("Updated invoice detail {}: old line total={}, new line total={}, difference={}, new invoice total={}",
+                detailId, oldLineTotal, newLineTotal, difference, invoice.getTotalAmount());
+
+        return mapToDetailResponseDto(updatedDetail);
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    /**
+     * ✅ Phương thức CỘNG/TRỪ tiền vào invoice
+     * - Nếu amount > 0: cộng thêm
+     * - Nếu amount < 0: trừ đi
+     *
+     * @param invoice Invoice cần cập nhật
+     * @param amount Số tiền cần cộng/trừ
+     */
+    private void addAmountToInvoice(Invoice invoice, Double amount) {
+        if (amount == null || amount == 0) {
+            return;
+        }
+
+        Double currentTotal = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+        Double newTotal = currentTotal + amount;
+
+        // Không cho tổng tiền âm
+        if (newTotal < 0) {
+            throw new CustomException(
+                    String.format("Invoice total amount cannot be negative. Current: %.2f, Amount to add: %.2f",
+                            currentTotal, amount),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
+        invoice.setTotalAmount(newTotal);
         invoiceRepository.save(invoice);
+
+        log.debug("Invoice {} total amount updated: {:.2f} + {:.2f} = {:.2f}",
+                invoice.getInvoiceId(), currentTotal, amount, newTotal);
+    }
+
+    /**
+     * ✅ Tính lại TOÀN BỘ tổng tiền invoice từ đầu
+     * Công thức: totalAmount = rentalAmount + extraCharges - depositAmount
+     *
+     * Sử dụng khi:
+     * - Cần verify hoặc fix dữ liệu
+     * - Sau khi import dữ liệu
+     * - Admin muốn recalculate
+     */
+    @Transactional
+    public void recalculateInvoiceTotalAmount(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
+
+        Booking booking = invoice.getBooking();
+        if (booking == null) {
+            throw new CustomException("Invoice has no associated booking", HttpStatus.BAD_REQUEST);
+        }
+
+        // Bước 1: Tính tiền thuê xe từ booking
+        Double rentalAmount = booking.getTotalAmount() != null ? booking.getTotalAmount() : 0.0;
+
+        // Bước 2: Tính tổng các chi phí phụ từ invoice lines
+        Double extraCharges = 0.0;
+        if (invoice.getLines() != null && !invoice.getLines().isEmpty()) {
+            extraCharges = invoice.getLines().stream()
+                    .mapToDouble(detail -> detail.getLineTotal() != null ? detail.getLineTotal() : 0.0)
+                    .sum();
+        }
+
+        // Bước 3: Tổng tiền = tiền thuê + chi phí phụ
+        Double finalAmount = rentalAmount + extraCharges;
+
+        // Không cho tổng tiền âm
+        if (finalAmount < 0) {
+            log.warn("Recalculated invoice {} would have negative total: rental={}, extras={}, deposit={}",
+                    invoiceId, rentalAmount, extraCharges);
+            finalAmount = 0.0;
+        }
+
+        invoice.setTotalAmount(finalAmount);
+        invoiceRepository.save(invoice);
+
+        log.info("Recalculated invoice {}: rental={}, extras={}, deposit={}, final total={}",
+                invoiceId, rentalAmount, extraCharges, finalAmount);
+    }
+
+    /**
+     * Lấy chi tiết phân tích tổng tiền invoice
+     */
+    public Map<String, Object> getInvoiceAmountBreakdown(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
+
+        Booking booking = invoice.getBooking();
+        if (booking == null) {
+            throw new CustomException("Invoice has no associated booking", HttpStatus.BAD_REQUEST);
+        }
+
+        Double rentalAmount = booking.getTotalAmount() != null ? booking.getTotalAmount() : 0.0;
+        Double depositAmount = invoice.getDepositAmount() != null ? invoice.getDepositAmount() : 0.0;
+
+        // Tính tổng chi phí phụ theo từng loại
+        Map<String, Double> extraChargesByType = new HashMap<>();
+        Double totalExtraCharges = 0.0;
+        List<InvoiceDetailResponseDto> detailsList = new ArrayList<>();
+
+        if (invoice.getLines() != null && !invoice.getLines().isEmpty()) {
+            for (InvoiceDetail detail : invoice.getLines()) {
+                Double lineTotal = detail.getLineTotal() != null ? detail.getLineTotal() : 0.0;
+                totalExtraCharges += lineTotal;
+
+                String typeName = detail.getType().name();
+                extraChargesByType.merge(typeName, lineTotal, Double::sum);
+
+                detailsList.add(mapToDetailResponseDto(detail));
+            }
+        }
+
+        Double subtotal = rentalAmount + totalExtraCharges;
+
+        Map<String, Object> extraChargesMap = new HashMap<>();
+        extraChargesMap.put("total", totalExtraCharges);
+        extraChargesMap.put("byType", extraChargesByType);
+        extraChargesMap.put("details", detailsList);
+
+        Map<String, Object> breakdown = new HashMap<>();
+        breakdown.put("invoiceId", invoiceId);
+        breakdown.put("invoiceType", invoice.getType().name());
+        breakdown.put("rentalAmount", rentalAmount);
+        breakdown.put("depositAmount", depositAmount);
+        breakdown.put("extraCharges", extraChargesMap);
+        breakdown.put("finalAmount", subtotal);
+        breakdown.put("currentInvoiceTotal", invoice.getTotalAmount());
+
+        return breakdown;
     }
 
     /**

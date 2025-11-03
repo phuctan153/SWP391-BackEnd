@@ -5,16 +5,19 @@ import com.example.ev_rental_backend.dto.invoice.*;
 import com.example.ev_rental_backend.service.invoice.InvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/invoices")
 @RequiredArgsConstructor
+@Slf4j
 public class InvoiceController {
     private final InvoiceService invoiceService;
 
@@ -84,38 +87,106 @@ public class InvoiceController {
 
 
     // 7.2. Invoice Details
-
     /**
-     * POST /api/invoices/{invoiceId}/details - Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
-     *
+     * POST /api/v1/invoices/{invoiceId}/details - Thêm dòng chi phí (phụ tùng, phạt) (BR-13)
      */
     @PostMapping("/invoices/{invoiceId}/details")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<InvoiceDetailResponseDto>> addInvoiceDetail(
             @PathVariable Long invoiceId,
             @Valid @RequestBody CreateInvoiceDetailDto requestDto) {
+
+        log.info("Adding invoice detail to invoice {}: type={}, quantity={}, unitPrice={}",
+                invoiceId, requestDto.getType(), requestDto.getQuantity(), requestDto.getUnitPrice());
+
         InvoiceDetailResponseDto detail = invoiceService.addInvoiceDetail(invoiceId, requestDto);
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<InvoiceDetailResponseDto>builder()
                         .status("success")
                         .code(HttpStatus.CREATED.value())
+                        .message("Invoice detail added successfully")
                         .data(detail)
                         .build());
     }
 
     /**
-     * DELETE /api/invoices/{invoiceId}/details/{detailId} - Xóa dòng chi phí
+     * PUT /api/v1/invoices/{invoiceId}/details/{detailId} - Cập nhật dòng chi phí
+     */
+    @PutMapping("/invoices/{invoiceId}/details/{detailId}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<InvoiceDetailResponseDto>> updateInvoiceDetail(
+            @PathVariable Long invoiceId,
+            @PathVariable Long detailId,
+            @Valid @RequestBody UpdateInvoiceDetailDto requestDto) {
+
+        log.info("Updating invoice detail {} of invoice {}", detailId, invoiceId);
+
+        InvoiceDetailResponseDto detail = invoiceService.updateInvoiceDetail(invoiceId, detailId, requestDto);
+
+        return ResponseEntity.ok(ApiResponse.<InvoiceDetailResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .message("Invoice detail updated successfully")
+                .data(detail)
+                .build());
+    }
+
+    /**
+     * DELETE /api/v1/invoices/{invoiceId}/details/{detailId} - Xóa dòng chi phí
      */
     @DeleteMapping("/invoices/{invoiceId}/details/{detailId}")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<ApiResponse<String>> deleteInvoiceDetail(
+    public ResponseEntity<ApiResponse<Void>> deleteInvoiceDetail(
             @PathVariable Long invoiceId,
             @PathVariable Long detailId) {
+
+        log.info("Deleting invoice detail {} from invoice {}", detailId, invoiceId);
+
         invoiceService.deleteInvoiceDetail(invoiceId, detailId);
-        return ResponseEntity.ok(ApiResponse.<String>builder()
+
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
-                .data("Invoice detail deleted successfully")
+                .message("Invoice detail deleted successfully")
+                .build());
+    }
+
+    /**
+     * GET /api/v1/invoices/{invoiceId}/amount-breakdown - Xem phân tích chi tiết tổng tiền
+     */
+    @GetMapping("/invoices/{invoiceId}/amount-breakdown")
+    @PreAuthorize("hasAnyRole('RENTER', 'STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getInvoiceAmountBreakdown(
+            @PathVariable Long invoiceId) {
+
+        log.info("Getting amount breakdown for invoice {}", invoiceId);
+
+        Map<String, Object> breakdown = invoiceService.getInvoiceAmountBreakdown(invoiceId);
+
+        return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(breakdown)
+                .build());
+    }
+
+    /**
+     * POST /api/v1/invoices/{invoiceId}/recalculate - Tính lại tổng tiền invoice (Admin only)
+     */
+    @PostMapping("/invoices/{invoiceId}/recalculate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> recalculateInvoiceTotalAmount(
+            @PathVariable Long invoiceId) {
+
+        log.info("Recalculating total amount for invoice {}", invoiceId);
+
+        invoiceService.recalculateInvoiceTotalAmount(invoiceId);
+
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .message("Invoice total amount recalculated successfully")
                 .build());
     }
 }

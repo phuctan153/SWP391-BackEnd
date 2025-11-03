@@ -281,9 +281,9 @@ public class BookingServiceImpl implements BookingService {
 
         Booking savedBooking = bookingRepository.save(booking);
 
-        // Cập nhật vehicle status
-        vehicle.setStatus(Vehicle.Status.IN_USE);
-        vehicleRepository.save(vehicle);
+//        // Cập nhật vehicle status
+//        vehicle.setStatus(Vehicle.Status.IN_USE);
+//        vehicleRepository.save(vehicle);
 
         log.info("Booking {} created for renter {} and vehicle {}",
                 savedBooking.getBookingId(), renter.getRenterId(), vehicle.getVehicleId());

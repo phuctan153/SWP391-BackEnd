@@ -250,18 +250,32 @@ public class NotificationServiceImpl implements NotificationService {
             Staff staff = ss.getStaff(); // Lấy thông tin nhân viên thực tế
 
             String message = String.format(
-                    "🔔 Renter %s vừa gửi yêu cầu trả xe %s tại trạm %s.",
+                    "🔔 Khách hàng %s vừa gửi yêu cầu trả xe %s tại trạm %s.",
                     booking.getRenter().getFullName(),
                     booking.getVehicle().getVehicleName(),
                     station.getName()
             );
 
-            // 💬 Hiện tại demo log — có thể thay bằng WebSocket hoặc Firebase
-            log.info("📩 Gửi thông báo đến Staff [{} - {}]: {}",
+            // 💾 Lưu thông báo vào DB
+            Notification notification = Notification.builder()
+                    .title("🚘 Yêu cầu trả xe mới")
+                    .message(message)
+                    .recipientType(Notification.RecipientType.STAFF)
+                    .recipientId(staff.getStaffId())
+                    .isRead(false)
+                    .build();
+
+            notificationRepository.save(notification);
+
+            // 💬 Log để theo dõi trong console
+            log.info("📩 Đã gửi thông báo đến Staff [{} - {}]: {}",
                     staff.getStaffId(),
                     staff.getFullName(),
                     message);
         }
+
+        log.info("✅ Đã gửi thông báo trả xe đến toàn bộ nhân viên ACTIVE của trạm {}", station.getName());
     }
+
 
 }

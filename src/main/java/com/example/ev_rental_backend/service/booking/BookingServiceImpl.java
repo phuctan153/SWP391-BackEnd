@@ -245,7 +245,7 @@ public class BookingServiceImpl implements BookingService {
 
         // Lấy vehicle
         Vehicle vehicle = vehicleRepository.findById(requestDto.getVehicleId())
-                .orElseThrow(() -> new NotFoundException("Vehicle not found"));
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy xe"));
 
         // BR-05: Validate thời gian hợp lệ
         validator.validateBookingTime(requestDto.getStartDateTime(), requestDto.getEndDateTime());
@@ -254,8 +254,8 @@ public class BookingServiceImpl implements BookingService {
         validator.validateAdvanceBookingTime(requestDto.getStartDateTime());
 
         // BR-07: Kiểm tra xe available
-        validator.validateVehicleAvailable(vehicle, requestDto.getStartDateTime(),
-                requestDto.getEndDateTime());
+//        validator.validateVehicleAvailable(vehicle, requestDto.getStartDateTime(),
+//                requestDto.getEndDateTime());
 
         // Tính tổng tiền
         Duration duration = Duration.between(requestDto.getStartDateTime(),
@@ -837,8 +837,24 @@ public class BookingServiceImpl implements BookingService {
                 .status(booking.getStatus())
                 .depositStatus(booking.getDepositStatus())
                 .createdAt(booking.getCreatedAt())
+                .updatedAt(booking.getUpdatedAt())
+                .bookingImages(
+                        booking.getImages() != null
+                                ? booking.getImages().stream()
+                                .map(img -> BookingResponseDto.BookingImageDto.builder()
+                                        .imageId(img.getImageId())
+                                        .imageUrl(img.getImageUrl())
+                                        .description(img.getDescription())
+                                        .createdAt(img.getCreatedAt())
+                                        .imageType(img.getImageType())
+                                        .vehicleComponent(img.getVehicleComponent())
+                                        .build())
+                                .toList()
+                                : null
+                )
                 .build();
     }
+
 
     private BookingRatingResponseDto mapToRatingResponseDto(BookingRating rating) {
         return BookingRatingResponseDto.builder()

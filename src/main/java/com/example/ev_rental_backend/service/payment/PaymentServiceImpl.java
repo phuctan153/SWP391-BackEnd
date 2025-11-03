@@ -59,31 +59,33 @@ public class PaymentServiceImpl implements PaymentService {
     /**
      * Thanh toán bằng ví (BR-30)
      */
+    @Transactional
     public PaymentResponseDto payByWallet(Long invoiceId, PaymentRequestDto requestDto) {
+        // 1️⃣ Validate hóa đơn
         Invoice invoice = getInvoiceAndValidate(invoiceId, requestDto.getAmount());
 
-        // Lấy renter từ booking
+        // 2️⃣ Lấy renter từ booking
         Renter renter = invoice.getBooking().getRenter();
 
-        // Lấy wallet
+        // 3️⃣ Lấy ví của renter
         Wallet wallet = walletRepository.findByRenter(renter)
-                .orElseThrow(() -> new NotFoundException("Wallet not found for renter"));
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy ví của người thuê"));
 
-        // Kiểm tra ví có active không
+        // 4️⃣ Kiểm tra trạng thái ví
         if (wallet.getStatus() != Wallet.Status.ACTIVE) {
-            throw new CustomException("Wallet is not active", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Ví của bạn đang bị khóa. Vui lòng liên hệ hỗ trợ.", HttpStatus.BAD_REQUEST);
         }
 
-        // Kiểm tra số dư
+        // 5️⃣ Kiểm tra số dư
         if (wallet.getBalance().compareTo(BigDecimal.valueOf(requestDto.getAmount())) < 0) {
-            throw new CustomException("Insufficient wallet balance", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Số dư trong ví không đủ để thanh toán.", HttpStatus.BAD_REQUEST);
         }
 
-        // Trừ tiền trong ví
+        // 6️⃣ Trừ tiền trong ví
         wallet.setBalance(wallet.getBalance().subtract(BigDecimal.valueOf(requestDto.getAmount())));
         walletRepository.save(wallet);
 
-        // Tạo transaction
+        // 7️⃣ Tạo giao dịch thanh toán (Transaction)
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .invoice(invoice)
                 .wallet(wallet)
@@ -94,11 +96,18 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
 
-        // Cập nhật trạng thái invoice
+        // 8️⃣ Cập nhật phương thức thanh toán của hóa đơn
+        invoice.setPaymentMethod(Invoice.PaymentMethod.WALLET);
+        invoiceRepository.save(invoice);
+        log.info("Đã cập nhật phương thức thanh toán của hóa đơn {} thành WALLET", invoiceId);
+
+        // 9️⃣ Cập nhật trạng thái hóa đơn sau khi thanh toán
         updateInvoiceStatus(invoice, requestDto.getAmount());
 
+        // 🔟 Trả kết quả về client
         return mapToPaymentResponseDto(savedTransaction);
     }
+
 
     /**
      * Tạo payment MoMo cho invoice (BR-30)
@@ -114,7 +123,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (requestDto.getAmount() > amountRemaining) {
             throw new CustomException(
-                    String.format("Payment amount %.2f exceeds remaining amount %.2f",
+                    String.format("Số tiền thanh toán %.2f vượt quá số tiền còn lại %.2f",
                             requestDto.getAmount(), amountRemaining),
                     HttpStatus.BAD_REQUEST
             );
@@ -130,13 +139,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
 
-        log.info("Created payment transaction {} for invoice {}",
+        log.info("Đã tạo giao dịch thanh toán {} cho hóa đơn {}",
                 savedTransaction.getTransactionId(), invoiceId);
 
         // 4. Tạo payment với MoMo
         String orderInfo = String.format(
-                "Thanh toan hoa don #%d - EV Station",
-                invoiceId
+                "Thanh toán hóa đơn #%d - EV Station", invoiceId
         );
 
         MomoPaymentInfoDto momoPayment = momoPaymentService.createPayment(
@@ -145,18 +153,21 @@ public class PaymentServiceImpl implements PaymentService {
                 orderInfo
         );
 
-        // 5. Kiểm tra kết quả
+        // 5. Cập nhật phương thức thanh toán
+        invoice.setPaymentMethod(Invoice.PaymentMethod.MOMO);
+        invoiceRepository.save(invoice);
+        log.info("Đã cập nhật phương thức thanh toán của hóa đơn {} thành MOMO", invoiceId);
+
+        // 6. Kiểm tra kết quả MoMo
         if (momoPayment.getResultCode() != 0) {
-            // Tạo payment thất bại
             savedTransaction.setStatus(PaymentTransaction.Status.FAILED);
             paymentTransactionRepository.save(savedTransaction);
-
-            log.error("MoMo payment creation failed for transaction {}",
-                    savedTransaction.getTransactionId());
+            log.error("❌ Tạo giao dịch MoMo thất bại cho transaction {}", savedTransaction.getTransactionId());
         }
 
         return momoPayment;
     }
+
 
     /**
      * Xử lý IPN từ MoMo

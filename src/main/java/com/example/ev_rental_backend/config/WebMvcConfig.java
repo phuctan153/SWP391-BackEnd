@@ -25,6 +25,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "https://nonpending-lelia-ballistically.ngrok-free.dev"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*") // ✅ Cho phép tất cả header
+                .exposedHeaders("Authorization", "Content-Type")
                 .allowCredentials(true);
     }
 }

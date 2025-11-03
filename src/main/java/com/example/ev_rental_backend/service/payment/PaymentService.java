@@ -1,6 +1,9 @@
 package com.example.ev_rental_backend.service.payment;
 
 import com.example.ev_rental_backend.dto.payment.*;
+import com.example.ev_rental_backend.dto.payos.PayOSPaymentInfoDto;
+import com.example.ev_rental_backend.dto.payos.PayOSWebhookRequest;
+import com.example.ev_rental_backend.dto.payos.PayOSWebhookResponse;
 import com.example.ev_rental_backend.entity.Invoice;
 
 public interface PaymentService {
@@ -23,4 +26,7 @@ public interface PaymentService {
     public MomoPaymentInfoDto createMomoPayment(Long invoiceId, PaymentRequestDto requestDto);
 
     public MomoIPNResponse handleMomoIPN(MomoIPNRequest ipnRequest);
+
+    public PayOSWebhookResponse handlePayOSWebhook(PayOSWebhookRequest webhookRequest);
+    public PayOSPaymentInfoDto createPayOSPayment(Long invoiceId, PaymentRequestDto requestDto);
 }

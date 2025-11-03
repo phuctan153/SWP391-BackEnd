@@ -93,7 +93,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
 
         // Kiểm tra booking phải ở trạng thái COMPLETED
-        if (booking.getStatus() != Booking.Status.COMPLETED) {
+        if (booking.getStatus() != Booking.Status.IN_USE) {
             throw new CustomException("Can only create final invoice for COMPLETED booking",
                     HttpStatus.BAD_REQUEST);
         }

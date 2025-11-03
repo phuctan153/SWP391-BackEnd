@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -258,23 +261,67 @@ public class BookingServiceImpl implements BookingService {
     // ==================== 5.2. Booking Images ====================
 
     /**
-     * Upload ảnh xe (BR-09, BR-26)
+     * Upload ảnh xe với hạng mục cụ thể (BR-09, BR-26)
+     *
+     * @param bookingId ID booking
+     * @param file File ảnh
+     * @param imageTypeStr Loại ảnh (BEFORE_RENTAL, AFTER_RENTAL, DAMAGE, OTHER)
+     * @param vehicleComponentStr Hạng mục xe (STEERING_WHEEL, TIRE_FRONT_LEFT, ...)
+     * @param description Mô tả thêm
+     * @return BookingImageResponseDto
      */
-    public BookingImageResponseDto uploadBookingImage(Long bookingId, MultipartFile file,
-                                                      String imageTypeStr, String description) {
+    @Transactional
+    public BookingImageResponseDto uploadBookingImage(
+            Long bookingId,
+            MultipartFile file,
+            String imageTypeStr,
+            String vehicleComponentStr,
+            String description) {
+
+        // Kiểm tra booking tồn tại
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found"));
+                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
+
+        // Kiểm tra trạng thái booking có hợp lệ để upload ảnh không
+        validateBookingStatusForImageUpload(booking);
 
         // Parse imageType
         BookingImage.ImageType imageType;
         try {
-            imageType = BookingImage.ImageType.valueOf(imageTypeStr);
+            imageType = BookingImage.ImageType.valueOf(imageTypeStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new CustomException("Invalid image type: " + imageTypeStr,
-                    HttpStatus.BAD_REQUEST);
+            throw new CustomException(
+                    "Invalid image type: " + imageTypeStr +
+                            ". Valid values: " + Arrays.toString(BookingImage.ImageType.values()),
+                    HttpStatus.BAD_REQUEST
+            );
         }
 
-        // Upload file
+        // Parse vehicleComponent (optional)
+        BookingImage.VehicleComponent vehicleComponent = null;
+        if (vehicleComponentStr != null && !vehicleComponentStr.trim().isEmpty()) {
+            try {
+                vehicleComponent = BookingImage.VehicleComponent.valueOf(vehicleComponentStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new CustomException(
+                        "Invalid vehicle component: " + vehicleComponentStr +
+                                ". Valid values: " + Arrays.toString(BookingImage.VehicleComponent.values()),
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+        }
+
+        // Validate logic: Nếu là ảnh BEFORE_RENTAL hoặc AFTER_RENTAL thì BẮT BUỘC phải có vehicleComponent
+        if ((imageType == BookingImage.ImageType.BEFORE_RENTAL ||
+                imageType == BookingImage.ImageType.AFTER_RENTAL) &&
+                vehicleComponent == null) {
+            throw new CustomException(
+                    "Vehicle component is required for BEFORE_RENTAL and AFTER_RENTAL images",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
+        // Upload file lên Cloudinary
         String imageUrl = fileStorageService.storeFile(file, "booking-images");
 
         // Tạo booking image
@@ -282,26 +329,156 @@ public class BookingServiceImpl implements BookingService {
                 .booking(booking)
                 .imageUrl(imageUrl)
                 .imageType(imageType)
+                .vehicleComponent(vehicleComponent)
                 .description(description)
                 .build();
 
         BookingImage savedImage = bookingImageRepository.save(image);
 
-        log.info("Image uploaded for booking {}: {}", bookingId, imageType);
+        log.info("Image uploaded for booking {}: type={}, component={}",
+                bookingId, imageType, vehicleComponent);
 
         return mapToImageResponseDto(savedImage);
     }
 
     /**
-     * Lấy danh sách ảnh của booking
+     * Lấy danh sách ảnh của booking, có thể filter theo loại và hạng mục
      */
-    public List<BookingImageResponseDto> getBookingImages(Long bookingId) {
+    public List<BookingImageResponseDto> getBookingImages(
+            Long bookingId,
+            String imageTypeFilter,
+            String vehicleComponentFilter) {
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
+
+        List<BookingImage> images = booking.getImages();
+
+        // Filter theo imageType nếu có
+        if (imageTypeFilter != null && !imageTypeFilter.trim().isEmpty()) {
+            try {
+                BookingImage.ImageType filterType = BookingImage.ImageType.valueOf(imageTypeFilter.toUpperCase());
+                images = images.stream()
+                        .filter(img -> img.getImageType() == filterType)
+                        .collect(Collectors.toList());
+            } catch (IllegalArgumentException e) {
+                throw new CustomException("Invalid image type filter: " + imageTypeFilter, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // Filter theo vehicleComponent nếu có
+        if (vehicleComponentFilter != null && !vehicleComponentFilter.trim().isEmpty()) {
+            try {
+                BookingImage.VehicleComponent filterComponent =
+                        BookingImage.VehicleComponent.valueOf(vehicleComponentFilter.toUpperCase());
+                images = images.stream()
+                        .filter(img -> img.getVehicleComponent() == filterComponent)
+                        .collect(Collectors.toList());
+            } catch (IllegalArgumentException e) {
+                throw new CustomException("Invalid vehicle component filter: " + vehicleComponentFilter,
+                        HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        return images.stream()
+                .map(this::mapToImageResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Xóa ảnh booking
+     */
+    @Transactional
+    public void deleteBookingImage(Long bookingId, Long imageId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Booking not found"));
 
-        return booking.getImages().stream()
-                .map(this::mapToImageResponseDto)
+        BookingImage image = bookingImageRepository.findById(imageId)
+                .orElseThrow(() -> new NotFoundException("Image not found"));
+
+        // Kiểm tra ảnh có thuộc booking này không
+        if (!image.getBooking().getBookingId().equals(bookingId)) {
+            throw new CustomException("Image does not belong to this booking", HttpStatus.BAD_REQUEST);
+        }
+
+        // Xóa file trên Cloudinary
+        fileStorageService.deleteFile(image.getImageUrl());
+
+        // Xóa record trong DB
+        bookingImageRepository.delete(image);
+
+        log.info("Deleted image {} from booking {}", imageId, bookingId);
+    }
+
+    /**
+     * Kiểm tra checklist ảnh xe đã đủ chưa (trước khi cho phép nhận/trả xe)
+     */
+    public Map<String, Object> checkImageChecklist(Long bookingId, BookingImage.ImageType imageType) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Booking not found"));
+
+        // Lấy các hạng mục bắt buộc phải chụp
+        List<BookingImage.VehicleComponent> requiredComponents = List.of(
+                BookingImage.VehicleComponent.EXTERIOR_FRONT,
+                BookingImage.VehicleComponent.EXTERIOR_BACK,
+                BookingImage.VehicleComponent.EXTERIOR_LEFT,
+                BookingImage.VehicleComponent.EXTERIOR_RIGHT,
+                BookingImage.VehicleComponent.DASHBOARD,
+                BookingImage.VehicleComponent.MILEAGE_METER,
+                BookingImage.VehicleComponent.BATTERY_INDICATOR
+        );
+
+        // Lấy các hạng mục đã chụp
+        List<BookingImage.VehicleComponent> capturedComponents = booking.getImages().stream()
+                .filter(img -> img.getImageType() == imageType)
+                .map(BookingImage::getVehicleComponent)
+                .filter(component -> component != null)
+                .distinct()
                 .collect(Collectors.toList());
+
+        // Tìm các hạng mục còn thiếu
+        List<BookingImage.VehicleComponent> missingComponents = requiredComponents.stream()
+                .filter(component -> !capturedComponents.contains(component))
+                .collect(Collectors.toList());
+
+        boolean isComplete = missingComponents.isEmpty();
+
+        return Map.of(
+                "isComplete", isComplete,
+                "requiredComponents", requiredComponents,
+                "capturedComponents", capturedComponents,
+                "missingComponents", missingComponents,
+                "completionPercentage", (capturedComponents.size() * 100.0 / requiredComponents.size())
+        );
+    }
+
+    /**
+     * Validate trạng thái booking có cho phép upload ảnh không
+     */
+    private void validateBookingStatusForImageUpload(Booking booking) {
+        if (booking.getStatus() == Booking.Status.CANCELLED ||
+                booking.getStatus() == Booking.Status.EXPIRED) {
+            throw new CustomException(
+                    "Cannot upload images for cancelled or expired booking",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    /**
+     * Map entity sang DTO
+     */
+    private BookingImageResponseDto mapToImageResponseDto(BookingImage image) {
+        return BookingImageResponseDto.builder()
+                .imageId(image.getImageId())
+                .bookingId(image.getBooking().getBookingId())
+                .imageUrl(image.getImageUrl())
+                .imageType(image.getImageType())
+                .vehicleComponent(image.getVehicleComponent() != null ?
+                        image.getVehicleComponent().name() : null)
+                .description(image.getDescription())
+                .createdAt(image.getCreatedAt())
+                .build();
     }
 
     // ==================== 5.3. Pickup Process ====================
@@ -583,16 +760,6 @@ public class BookingServiceImpl implements BookingService {
                 .status(booking.getStatus())
                 .depositStatus(booking.getDepositStatus())
                 .createdAt(booking.getCreatedAt())
-                .build();
-    }
-
-    private BookingImageResponseDto mapToImageResponseDto(BookingImage image) {
-        return BookingImageResponseDto.builder()
-                .imageId(image.getImageId())
-                .imageUrl(image.getImageUrl())
-                .imageType(image.getImageType())
-                .description(image.getDescription())
-                .createdAt(image.getCreatedAt())
                 .build();
     }
 

@@ -18,7 +18,7 @@ public class SwaggerConfig {
         final String securitySchemeName = "bearerAuth";
         return new OpenAPI()
                 .addServersItem(new Server()
-                        .url("https://nonpending-lelia-ballistically.ngrok-free.dev")
+                        .url("http://localhost:8080")
                         .description("LocalTunnel Secure Server"))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new io.swagger.v3.oas.models.Components()

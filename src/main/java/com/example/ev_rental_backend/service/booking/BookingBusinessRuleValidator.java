@@ -68,15 +68,46 @@ public class BookingBusinessRuleValidator {
             throw new CustomException("Xe hiện không khả dụng (BR-07)", HttpStatus.BAD_REQUEST);
         }
 
-        List<Booking> overlappingBookings = bookingRepository
-                .findOverlappingBookings(vehicle.getVehicleId(), startDateTime, endDateTime);
+        // 🔹 Lấy giá trị policy giữ xe (mặc định 2 ngày)
+        int holdDays = policyRepository
+                .findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(
+                        Policy.PolicyType.VEHICLE_HOLD_DAYS_AFTER_BOOKING,
+                        Policy.Status.ACTIVE
+                )
+                .map(policy -> policy.getValue().intValue())
+                .orElse(2);
+
+        // 🔹 Cộng thêm thời gian giữ xe
+        LocalDateTime extendedEndDate = endDateTime.plusDays(holdDays);
+
+        // 🔹 Truy vấn tìm booking bị trùng thời gian
+        List<Booking> overlappingBookings = bookingRepository.findBookingsWithHoldPeriod(
+                vehicle.getVehicleId(),
+                startDateTime,
+                extendedEndDate
+        );
+
 
         if (!overlappingBookings.isEmpty()) {
-            throw new CustomException("Xe đã được đặt trong khoảng thời gian này (BR-07)", HttpStatus.BAD_REQUEST);
+            Booking conflict = overlappingBookings.get(0);
+            throw new CustomException(
+                    String.format(
+                            "Xe đã được đặt từ %s đến %s",
+                            conflict.getStartDateTime().toLocalDate(),
+                            conflict.getEndDateTime().toLocalDate().plusDays(holdDays),
+                            holdDays
+                    ),
+                    HttpStatus.BAD_REQUEST
+            );
         }
 
-        log.info("✅ BR-07 hợp lệ: Xe {} sẵn sàng cho thuê", vehicle.getVehicleId());
+        log.info("✅ BR-07 hợp lệ: Xe {} sẵn sàng cho thuê (bao gồm thời gian giữ xe {} ngày)",
+                vehicle.getVehicleId(), holdDays);
     }
+
+
+
+
 
     /**
      * BR-16: Giới hạn thuê 1 xe - Mỗi tài khoản chỉ được có 1 booking RESERVED hoặc IN_USE

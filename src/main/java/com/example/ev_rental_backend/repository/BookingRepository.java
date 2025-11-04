@@ -18,6 +18,22 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByVehicle_Station_StationId(Long stationId);
 
+    @Query("""
+    SELECT b FROM Booking b
+    WHERE b.vehicle.vehicleId = :vehicleId
+      AND b.status IN ('PENDING', 'RESERVED', 'IN_USE')
+      AND (
+          (:startDateTime < b.endDateTime) AND (:extendedEndDate > b.startDateTime)
+      )
+""")
+    List<Booking> findBookingsWithHoldPeriod(
+            @Param("vehicleId") Long vehicleId,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("extendedEndDate") LocalDateTime extendedEndDate
+    );
+
+
+
     /**
      * Tìm booking theo renter
      */

@@ -237,33 +237,35 @@ public class BookingServiceImpl implements BookingService {
      * Tạo booking mới (BR-05, BR-06, BR-07, BR-16, BR-22)
      */
     public BookingResponseDto createBooking(CreateBookingRequestDto requestDto) {
-        // Lấy renter hiện tại
+        // 🔹 1. Lấy renter hiện tại
         Renter renter = getCurrentRenter();
 
-        // BR-16: Kiểm tra renter chỉ có 1 booking active
+        // 🔹 2. BR-16: Kiểm tra renter chỉ có 1 booking active
         validator.validateRenterHasNoActiveBooking(renter);
 
-        // Lấy vehicle
+        // 🔹 3. Lấy vehicle
         Vehicle vehicle = vehicleRepository.findById(requestDto.getVehicleId())
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy xe"));
 
-        // BR-05: Validate thời gian hợp lệ
+        // 🔹 4. BR-05: Kiểm tra thời gian hợp lệ
         validator.validateBookingTime(requestDto.getStartDateTime(), requestDto.getEndDateTime());
 
-        // BR-22: Validate đặt trước 7-14 ngày
+        // 🔹 5. BR-22: Kiểm tra đặt trước trong khoảng 7–14 ngày
         validator.validateAdvanceBookingTime(requestDto.getStartDateTime());
 
-        // BR-07: Kiểm tra xe available
-//        validator.validateVehicleAvailable(vehicle, requestDto.getStartDateTime(),
-//                requestDto.getEndDateTime());
+        // 🔹 6. BR-07: Kiểm tra xe có khả dụng (bao gồm thời gian giữ xe)
+        validator.validateVehicleAvailable(
+                vehicle,
+                requestDto.getStartDateTime(),
+                requestDto.getEndDateTime()
+        );
 
-        // Tính tổng tiền
-        Duration duration = Duration.between(requestDto.getStartDateTime(),
-                requestDto.getEndDateTime());
-        long days = duration.toDays();
+        // 🔹 7. Tính tổng tiền thuê
+        Duration duration = Duration.between(requestDto.getStartDateTime(), requestDto.getEndDateTime());
+        long days = Math.max(duration.toDays(), 1); // đảm bảo ít nhất 1 ngày
         Double totalAmount = days * vehicle.getPricePerDay();
 
-        // Tạo booking
+        // 🔹 8. Tạo booking mới
         Booking booking = Booking.builder()
                 .renter(renter)
                 .vehicle(vehicle)
@@ -276,20 +278,23 @@ public class BookingServiceImpl implements BookingService {
                 .depositStatus(Booking.DepositStatus.PENDING)
                 .build();
 
-        // Set thời gian hết hạn (1h sau startTime)
+        // 🔹 9. Set thời gian hết hạn (1h sau startTime)
         booking.setExpiresAt(requestDto.getStartDateTime().plusHours(1));
 
+        // 🔹 10. Lưu booking vào DB
         Booking savedBooking = bookingRepository.save(booking);
 
-//        // Cập nhật vehicle status
-//        vehicle.setStatus(Vehicle.Status.IN_USE);
-//        vehicleRepository.save(vehicle);
+        // 🔹 (Tuỳ chọn) Nếu bạn muốn set xe sang trạng thái RESERVED ngay khi booking pending:
+        // vehicle.setStatus(Vehicle.Status.RESERVED);
+        // vehicleRepository.save(vehicle);
 
-        log.info("Booking {} created for renter {} and vehicle {}",
+        log.info("✅ Booking {} created for renter {} and vehicle {}",
                 savedBooking.getBookingId(), renter.getRenterId(), vehicle.getVehicleId());
 
+        // 🔹 11. Trả về DTO
         return mapToResponseDto(savedBooking);
     }
+
 
     /**
      * Lấy chi tiết booking

@@ -2,10 +2,15 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.ApiResponse;
+import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.entity.Notification;
 import com.example.ev_rental_backend.repository.NotificationRepository;
+import com.example.ev_rental_backend.service.booking.BookingService;
+import com.example.ev_rental_backend.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +22,8 @@ public class NotificationController {
 
     private final JwtTokenUtil jwtTokenUtil;
     private final NotificationRepository notificationRepository;
+    private final BookingService bookingService;
+    private final NotificationService notificationService;
 
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<?>> getMyNotifications(
@@ -80,5 +87,27 @@ public class NotificationController {
                         .build()
         );
     }
+
+    @PostMapping("/booking/{bookingId}/cash-payment")
+    @PreAuthorize("hasRole('RENTER')")
+    public ResponseEntity<ApiResponse<?>> notifyCashPaymentBooking(
+            @PathVariable Long bookingId) {
+
+        Booking booking = bookingService.getBookingEntityById(bookingId);
+        notificationService.notifyStationAdminsForCashPayment(booking);
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .status("success")
+                        .code(HttpStatus.OK.value())
+                        .data(String.format("Đã gửi thông báo đến Station Admin tại trạm %s.",
+                                booking.getVehicle().getStation().getName()))
+                        .build()
+        );
+    }
+
+
+
+
 
 }

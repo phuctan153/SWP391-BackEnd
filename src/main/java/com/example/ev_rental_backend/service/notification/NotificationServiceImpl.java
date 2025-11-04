@@ -98,6 +98,59 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
+     * Gửi thông báo cho tất cả STATION_ADMIN trong trạm khi có booking cần xử lý thanh toán tiền mặt
+     */
+    @Override
+    public void notifyStationAdminsForCashPayment(Booking booking) {
+        if (booking.getVehicle() == null || booking.getVehicle().getStation() == null) {
+            throw new RuntimeException("Booking không chứa thông tin trạm xe hợp lệ");
+        }
+
+        Long stationId = booking.getVehicle().getStation().getStationId();
+
+        // 🔍 Lấy danh sách STATION_ADMIN đang ACTIVE trong trạm này
+        List<StaffStation> stationAdmins = staffStationRepository
+                .findByStation_StationIdAndRoleAtStationAndStatus(
+                        stationId,
+                        StaffStation.RoleAtStation.STATION_ADMIN,
+                        StaffStation.Status.ACTIVE
+                );
+
+        if (stationAdmins.isEmpty()) {
+            log.warn("⚠️ Không có Station Admin nào đang hoạt động ở station #{}", stationId);
+            return;
+        }
+
+        String title = "💵 Thanh toán tiền mặt cần xử lý";
+        String message = String.format(
+                "Booking #%d của khách hàng %s cần được xác nhận thanh toán tiền mặt tại trạm %s.",
+                booking.getBookingId(),
+                booking.getRenter().getFullName(),
+                booking.getVehicle().getStation().getName()
+        );
+
+        // 💾 Tạo danh sách thông báo
+        List<Notification> notifications = stationAdmins.stream()
+                .map(admin -> Notification.builder()
+                        .recipientType(Notification.RecipientType.STAFF)
+                        .recipientId(admin.getStaff().getStaffId())
+                        .title(title)
+                        .message(message)
+                        .isRead(false)
+                        .build())
+                .toList();
+
+        // 💾 Lưu toàn bộ thông báo vào DB một lần (hiệu suất cao, đảm bảo transactional)
+        notificationRepository.saveAll(notifications);
+
+        // 🪵 Ghi log chi tiết
+        log.info("✅ Đã lưu {} thông báo 'Thanh toán tiền mặt' cho Station Admin tại station #{}",
+                notifications.size(), stationId);
+    }
+
+
+
+    /**
      * Gửi thông báo nhắc nhở nhận xe (BR-20)
      */
     public void sendPickupReminder(Booking booking) {

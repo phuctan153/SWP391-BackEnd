@@ -24,4 +24,7 @@ public interface NotificationService {
     public void notifyStationAdminsToCreateContract(Booking booking);
 
     public void sendNotificationToStaff(Long staffId, String title, String message);
+
+    public void notifyStationAdminsForCashPayment(Booking booking);
+
 }

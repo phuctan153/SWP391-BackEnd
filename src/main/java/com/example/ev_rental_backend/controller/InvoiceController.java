@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.invoice.*;
+import com.example.ev_rental_backend.dto.price_list.PriceListResponseDto;
 import com.example.ev_rental_backend.entity.PriceList;
 import com.example.ev_rental_backend.service.invoice.InvoiceService;
 import com.example.ev_rental_backend.service.price_list.PriceListService;
@@ -157,11 +158,11 @@ public class InvoiceController {
 
     @GetMapping("/spare-parts")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<ApiResponse<List<PriceList>>> getAllSpareParts() {
-        List<PriceList> spareParts = priceListService.getAllSpareParts();
+    public ResponseEntity<ApiResponse<List<PriceListResponseDto>>> getAllSpareParts() {
+        List<PriceListResponseDto> spareParts = priceListService.getAllSpareParts();
 
         return ResponseEntity.ok(
-                ApiResponse.<List<PriceList>>builder()
+                ApiResponse.<List<PriceListResponseDto>>builder()
                         .status("success")
                         .code(HttpStatus.OK.value())
                         .data(spareParts)
@@ -169,6 +170,7 @@ public class InvoiceController {
                         .build()
         );
     }
+
 
     /**
      * GET /api/v1/invoices/{invoiceId}/amount-breakdown - Xem phân tích chi tiết tổng tiền

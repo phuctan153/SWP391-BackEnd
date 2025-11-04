@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.service.price_list;
 
+import com.example.ev_rental_backend.dto.price_list.PriceListResponseDto;
 import com.example.ev_rental_backend.entity.PriceList;
 import com.example.ev_rental_backend.repository.PriceListRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,9 +17,18 @@ public class PriceListServiceImpl implements PriceListService {
     private final PriceListRepository priceListRepository;
 
     @Override
-    public List<PriceList> getAllSpareParts() {
-        List<PriceList> spareParts = priceListRepository.findByPriceType(PriceList.PriceType.SPARE_PART);
-        log.info("📦 Fetched {} spare parts from price_list", spareParts.size());
-        return spareParts;
+    public List<PriceListResponseDto> getAllSpareParts() {
+        return priceListRepository.findByPriceType(PriceList.PriceType.SPARE_PART)
+                .stream()
+                .map(p -> PriceListResponseDto.builder()
+                        .priceId(p.getPriceId())
+                        .itemName(p.getItemName())
+                        .description(p.getDescription())
+                        .unitPrice(p.getUnitPrice())
+                        .stockQuantity(p.getStockQuantity())
+                        .sparePartType(p.getSparePartType() != null ? p.getSparePartType().name() : "OTHER")
+                        .build())
+                .toList();
     }
+
 }

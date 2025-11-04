@@ -47,7 +47,7 @@ public class Invoice {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod paymentMethod = PaymentMethod.CASH;
-    public enum PaymentMethod { CASH, WALLET, MOMO }
+    public enum PaymentMethod { CASH, WALLET, MOMO, PAYOS }
 
     // Ghi chú thêm
     private String notes;

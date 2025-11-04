@@ -176,7 +176,7 @@ public class PaymentServiceImpl implements PaymentService {
      * MoMo gọi về backend để thông báo kết quả thanh toán
      */
     @Transactional
-    public MomoIPNResponse handleMomoIPN(MomoIPNRequest ipnRequest) {
+    public MomoIPNResponse  handleMomoIPN(MomoIPNRequest ipnRequest) {
 
         log.info("Processing MoMo IPN - OrderId: {}, ResultCode: {}, TransId: {}",
                 ipnRequest.getOrderId(), ipnRequest.getResultCode(), ipnRequest.getTransId());
@@ -338,6 +338,58 @@ public class PaymentServiceImpl implements PaymentService {
     /**
      * Xử lý webhook từ PayOS
      */
+//    @Transactional
+//    public PayOSWebhookResponse handlePayOSWebhook(PayOSWebhookRequest webhookRequest) {
+//
+//        log.info("Processing PayOS webhook - OrderCode: {}, Code: {}",
+//                webhookRequest.getData().getOrderCode(), webhookRequest.getData().getCode());
+//
+//        try {
+//            // 1. Verify signature
+//            boolean isValidSignature = payosPaymentService.verifyWebhookSignature(webhookRequest);
+//
+//            if (!isValidSignature) {
+//                log.error("Invalid PayOS webhook signature - OrderCode: {}",
+//                        webhookRequest.getData().getOrderCode());
+//                return payosPaymentService.createWebhookResponse(false, "Invalid signature");
+//            }
+//
+//            // 2. Parse transaction ID từ order code
+//            // Trong production, query từ DB bằng orderCode
+//            Long orderCode = webhookRequest.getData().getOrderCode();
+//            PaymentTransaction transaction = paymentTransactionRepository
+//                    .findByOrderCode(orderCode)
+//                    .stream()
+//                    .filter(t -> t.getTransactionType() == PaymentTransaction.TransactionType.INVOICE_PAYOS)
+//                    .filter(t -> t.getStatus() == PaymentTransaction.Status.PENDING)
+//                    .findFirst()
+//                    .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
+//
+//            // 3. Kiểm tra transaction chưa xử lý (tránh duplicate webhook)
+//            if (transaction.getStatus() != PaymentTransaction.Status.PENDING) {
+//                log.warn("Transaction {} already processed, status: {}",
+//                        transaction.getTransactionId(), transaction.getStatus());
+//                return payosPaymentService.createWebhookResponse(true, "Already processed");
+//            }
+//
+//            // 4. Xử lý theo result code
+//            if ("00".equals(webhookRequest.getData().getCode())) {
+//                // Thanh toán thành công
+//                handleSuccessfulPayOSPayment(transaction, webhookRequest);
+//            } else {
+//                // Thanh toán thất bại
+//                handleFailedPayOSPayment(transaction, webhookRequest);
+//            }
+//
+//            // 5. Trả về response cho PayOS
+//            return payosPaymentService.createWebhookResponse(true, "Processed successfully");
+//
+//        } catch (Exception e) {
+//            log.error("Error processing PayOS webhook - OrderCode: {}",
+//                    webhookRequest.getData().getOrderCode(), e);
+//            return payosPaymentService.createWebhookResponse(false, "Error: " + e.getMessage());
+//        }
+//    }
     @Transactional
     public PayOSWebhookResponse handlePayOSWebhook(PayOSWebhookRequest webhookRequest) {
 
@@ -345,51 +397,96 @@ public class PaymentServiceImpl implements PaymentService {
                 webhookRequest.getData().getOrderCode(), webhookRequest.getData().getCode());
 
         try {
-            // 1. Verify signature
+            // 1️⃣ Verify signature
             boolean isValidSignature = payosPaymentService.verifyWebhookSignature(webhookRequest);
-
             if (!isValidSignature) {
                 log.error("Invalid PayOS webhook signature - OrderCode: {}",
                         webhookRequest.getData().getOrderCode());
                 return payosPaymentService.createWebhookResponse(false, "Invalid signature");
             }
 
-            // 2. Parse transaction ID từ order code
-            // Trong production, query từ DB bằng orderCode
+            // 2️⃣ Lấy transaction theo orderCode
             Long orderCode = webhookRequest.getData().getOrderCode();
             PaymentTransaction transaction = paymentTransactionRepository
                     .findByOrderCode(orderCode)
                     .stream()
                     .filter(t -> t.getTransactionType() == PaymentTransaction.TransactionType.INVOICE_PAYOS)
-                    .filter(t -> t.getStatus() == PaymentTransaction.Status.PENDING)
                     .findFirst()
                     .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
 
-            // 3. Kiểm tra transaction chưa xử lý (tránh duplicate webhook)
+            // 3️⃣ Tránh xử lý trùng webhook
             if (transaction.getStatus() != PaymentTransaction.Status.PENDING) {
                 log.warn("Transaction {} already processed, status: {}",
                         transaction.getTransactionId(), transaction.getStatus());
                 return payosPaymentService.createWebhookResponse(true, "Already processed");
             }
 
-            // 4. Xử lý theo result code
-            if ("00".equals(webhookRequest.getData().getCode())) {
-                // Thanh toán thành công
-                handleSuccessfulPayOSPayment(transaction, webhookRequest);
-            } else {
-                // Thanh toán thất bại
-                handleFailedPayOSPayment(transaction, webhookRequest);
+            // 4️⃣ Xử lý kết quả PayOS
+            String resultCode = webhookRequest.getData().getCode();
+
+            if ("00".equals(resultCode)) {
+                // ✅ Thành công
+                transaction.setStatus(PaymentTransaction.Status.SUCCESS);
+                paymentTransactionRepository.save(transaction);
+
+                Invoice invoice = transaction.getInvoice();
+                if (invoice == null) {
+                    log.warn("⚠️ No invoice found for transaction {}", transaction.getTransactionId());
+                    return payosPaymentService.createWebhookResponse(false, "Invoice not found");
+                }
+
+                // 🧾 Cập nhật hóa đơn
+                invoice.setStatus(Invoice.Status.PAID);
+                invoice.setPaymentMethod(Invoice.PaymentMethod.PAYOS);
+                invoice.setCompletedAt(LocalDateTime.now());
+                invoiceRepository.save(invoice);
+
+                Booking booking = invoice.getBooking();
+                if (booking != null) {
+                    // ✅ Nếu là tiền cọc
+                    if (invoice.getType() == Invoice.Type.DEPOSIT) {
+                        booking.setDepositStatus(Booking.DepositStatus.PAID);
+                        booking.setStatus(Booking.Status.RESERVED);
+                        bookingRepository.save(booking);
+                        log.info("🚗 Booking #{} deposit -> PAID, status -> RESERVED", booking.getBookingId());
+                    }
+
+                    // ✅ Nếu là hóa đơn cuối
+                    else if (invoice.getType() == Invoice.Type.FINAL) {
+                        booking.setStatus(Booking.Status.COMPLETED);
+                        bookingRepository.save(booking);
+                        log.info("✅ Booking #{} updated -> COMPLETED (final invoice)", booking.getBookingId());
+                    }
+                }
+
+                // 🔔 Gửi thông báo
+                notificationService.sendPaymentSuccess(invoice.getBooking(), transaction.getAmount().doubleValue());
+                log.info("💰 Invoice #{} marked PAID via PAYOS", invoice.getInvoiceId());
+            }
+            else {
+                // ❌ Thanh toán thất bại
+                transaction.setStatus(PaymentTransaction.Status.FAILED);
+                paymentTransactionRepository.save(transaction);
+
+                Invoice invoice = transaction.getInvoice();
+                if (invoice != null) {
+                    invoice.setStatus(Invoice.Status.CANCELLED);
+                    invoice.setPaymentMethod(Invoice.PaymentMethod.PAYOS);
+                    invoiceRepository.save(invoice);
+                    log.warn("❌ Invoice #{} set to CANCELLED (PayOS failed)", invoice.getInvoiceId());
+                }
             }
 
-            // 5. Trả về response cho PayOS
+            // 5️⃣ Trả về cho PayOS
             return payosPaymentService.createWebhookResponse(true, "Processed successfully");
 
         } catch (Exception e) {
-            log.error("Error processing PayOS webhook - OrderCode: {}",
-                    webhookRequest.getData().getOrderCode(), e);
+            log.error("Error processing PayOS webhook - OrderCode: {}", webhookRequest.getData().getOrderCode(), e);
             return payosPaymentService.createWebhookResponse(false, "Error: " + e.getMessage());
         }
     }
+
+
 
     // Helper methods
 

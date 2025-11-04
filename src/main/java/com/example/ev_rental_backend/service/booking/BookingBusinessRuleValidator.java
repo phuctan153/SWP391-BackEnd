@@ -65,14 +65,14 @@ public class BookingBusinessRuleValidator {
      */
     public void validateVehicleAvailable(Vehicle vehicle, LocalDateTime startDateTime, LocalDateTime endDateTime) {
         if (vehicle.getStatus() != Vehicle.Status.AVAILABLE) {
-            throw new CustomException("🚗 Xe hiện không khả dụng (BR-07)", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Xe hiện không khả dụng (BR-07)", HttpStatus.BAD_REQUEST);
         }
 
         List<Booking> overlappingBookings = bookingRepository
                 .findOverlappingBookings(vehicle.getVehicleId(), startDateTime, endDateTime);
 
         if (!overlappingBookings.isEmpty()) {
-            throw new CustomException("⚠️ Xe đã được đặt trong khoảng thời gian này (BR-07)", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Xe đã được đặt trong khoảng thời gian này (BR-07)", HttpStatus.BAD_REQUEST);
         }
 
         log.info("✅ BR-07 hợp lệ: Xe {} sẵn sàng cho thuê", vehicle.getVehicleId());

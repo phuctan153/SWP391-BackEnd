@@ -15,5 +15,6 @@ public interface PriceListRepository extends JpaRepository<PriceList, Long> {
     @Query("SELECT p FROM PriceList p WHERE p.priceType = :type AND p.stockQuantity > 0")
     List<PriceList> findAvailableByType(@Param("type") PriceList.PriceType type);
 
-    Optional<PriceList> findByPriceType(PriceList.PriceType priceType);
+    List<PriceList> findByPriceType(PriceList.PriceType priceType);
+
 }

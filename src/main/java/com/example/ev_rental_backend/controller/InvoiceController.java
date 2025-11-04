@@ -2,7 +2,9 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.invoice.*;
+import com.example.ev_rental_backend.entity.PriceList;
 import com.example.ev_rental_backend.service.invoice.InvoiceService;
+import com.example.ev_rental_backend.service.price_list.PriceListService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import java.util.Map;
 @Slf4j
 public class InvoiceController {
     private final InvoiceService invoiceService;
+    private final PriceListService priceListService;
 
     /**
      * GET /api/invoices/{invoiceId} - Chi tiết hóa đơn
@@ -150,6 +153,21 @@ public class InvoiceController {
                 .code(HttpStatus.OK.value())
                 .message("Invoice detail deleted successfully")
                 .build());
+    }
+
+    @GetMapping("/spare-parts")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<PriceList>>> getAllSpareParts() {
+        List<PriceList> spareParts = priceListService.getAllSpareParts();
+
+        return ResponseEntity.ok(
+                ApiResponse.<List<PriceList>>builder()
+                        .status("success")
+                        .code(HttpStatus.OK.value())
+                        .data(spareParts)
+                        .message("Danh sách phụ tùng đã được tải thành công")
+                        .build()
+        );
     }
 
     /**

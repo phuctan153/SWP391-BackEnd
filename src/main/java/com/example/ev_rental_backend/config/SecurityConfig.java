@@ -47,6 +47,7 @@ public class SecurityConfig {
                                 "/api/vehicle/**",
                                 "/api/vehicles/**",
                                 "/api/policies/{id}",
+                                "/api/policies/active/{type}",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

@@ -101,7 +101,7 @@ public class PolicyController {
     // 🔹 Lấy policy active theo loại
     // ===========================================================
     @GetMapping("/active/{type}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+//    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<Policy>> getActivePolicyByType(@PathVariable PolicyType type) {
         Policy active = policyService.getActivePolicyByType(type);
         return ResponseEntity.ok(ApiResponse.<Policy>builder()

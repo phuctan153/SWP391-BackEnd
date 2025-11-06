@@ -39,7 +39,6 @@ public class PolicyController {
     // 🔹 Lấy policy theo ID
     // ===========================================================
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<Policy>> getPolicyById(@PathVariable Long id) {
         Policy policy = policyService.getPolicyById(id);
         return ResponseEntity.ok(ApiResponse.<Policy>builder()

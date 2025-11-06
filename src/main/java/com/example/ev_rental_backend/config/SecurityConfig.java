@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/api/momo/**",
                                 "/api/vehicle/**",
                                 "/api/vehicles/**",
+                                "/api/policies/{id}",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",

@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.repository;
 
+import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.entity.BookingImage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,5 +21,11 @@ public interface BookingImageRepository extends JpaRepository<BookingImage, Long
     List<BookingImage> findByBookingIdAndImageType(
             @Param("bookingId") Long bookingId,
             @Param("imageType") BookingImage.ImageType imageType
+    );
+
+    boolean existsByBookingAndImageTypeAndVehicleComponent(
+            Booking booking,
+            BookingImage.ImageType imageType,
+            BookingImage.VehicleComponent vehicleComponent
     );
 }

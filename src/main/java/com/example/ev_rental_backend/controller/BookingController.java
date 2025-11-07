@@ -211,6 +211,23 @@ public class BookingController {
                         .build());
     }
 
+    @PatchMapping("/images/{imageId}/confirm")
+    @PreAuthorize("hasAnyRole('RENTER')")
+    public ResponseEntity<ApiResponse<BookingImageResponseDto>> confirmBookingImage(
+            @PathVariable Long imageId) {
+
+        BookingImageResponseDto image = bookingService.confirmBookingImage(imageId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<BookingImageResponseDto>builder()
+                        .status("success")
+                        .code(HttpStatus.OK.value())
+                        .message("Image confirmed successfully")
+                        .data(image)
+                        .build()
+        );
+    }
+
     /**
      * GET /api/v1/bookings/{bookingId}/images - Lấy danh sách ảnh với filter
      *

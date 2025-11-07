@@ -45,6 +45,10 @@ public class BookingImage {
     @Column(length = 30)
     private VehicleComponent vehicleComponent;
 
+    // ✅ Thuộc tính mới: Rental đã xác nhận ảnh hay chưa
+    @Column(nullable = false)
+    private Boolean confirmed = false;
+
     // ⏰ Tự động set thời gian tạo
     @PrePersist
     protected void onCreate() {

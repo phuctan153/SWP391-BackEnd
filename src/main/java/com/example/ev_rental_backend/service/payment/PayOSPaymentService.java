@@ -14,8 +14,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -109,6 +109,7 @@ public class PayOSPaymentService {
                 return PayOSPaymentInfoDto.builder()
                         .transactionId(transactionId)
                         .orderCode(orderCode)
+                        .paymentLinkId(data.getPaymentLinkId()) // 🆕 Lưu payment link ID
                         .checkoutUrl(data.getCheckoutUrl())
                         .qrCode(data.getQrCode())
                         .amount(amount)
@@ -134,23 +135,33 @@ public class PayOSPaymentService {
         }
     }
 
-    /**
-     * Verify webhook signature từ PayOS
-     *
-     * @param webhookData Webhook data
-     * @return true nếu hợp lệ
-     */
     public boolean verifyWebhookSignature(PayOSWebhookRequest webhookData) {
         try {
-            // Build data string for signature
+            // Build data string for signature theo thứ tự alphabet
             PayOSWebhookData data = webhookData.getData();
-            String dataStr = String.format(
-                    "amount=%d&code=%s&desc=%s&orderCode=%d",
-                    data.getAmount(),
-                    data.getCode(),
-                    data.getDesc(),
-                    data.getOrderCode()
-            );
+
+            // 🔑 QUAN TRỌNG: PayOS yêu cầu sort keys theo alphabet
+            Map<String, String> dataMap = new TreeMap<>(); // TreeMap tự động sort
+
+            dataMap.put("amount", String.valueOf(data.getAmount()));
+            dataMap.put("code", data.getCode());
+            dataMap.put("desc", data.getDesc());
+            dataMap.put("orderCode", String.valueOf(data.getOrderCode()));
+
+            // Optional fields (chỉ thêm nếu có giá trị)
+            if (data.getReference() != null) {
+                dataMap.put("reference", data.getReference());
+            }
+            if (data.getTransactionDateTime() != null) {
+                dataMap.put("transactionDateTime", data.getTransactionDateTime());
+            }
+
+            // Build data string: key1=value1&key2=value2&...
+            String dataStr = dataMap.entrySet().stream()
+                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+                    .collect(Collectors.joining("&"));
+
+            log.debug("Webhook data string for signature: {}", dataStr);
 
             // Generate signature
             String calculatedSignature = generateHMACSHA256(dataStr, payosConfig.getChecksumKey());
@@ -161,6 +172,9 @@ public class PayOSPaymentService {
             if (!isValid) {
                 log.error("Invalid PayOS webhook signature - Expected: {}, Received: {}",
                         calculatedSignature, webhookData.getSignature());
+                log.error("Data string used: {}", dataStr);
+            } else {
+                log.info("✅ PayOS webhook signature verified successfully");
             }
 
             return isValid;
@@ -192,6 +206,90 @@ public class PayOSPaymentService {
         return orderCode; // Placeholder
     }
 
+    /**
+     * Query payment status từ PayOS API
+     *
+     * GET /v2/payment-requests/{orderCode}
+     */
+    public PayOSPaymentData queryPaymentStatus(Long orderCode) {
+        try {
+            log.info("Querying PayOS payment status for orderCode: {}", orderCode);
+
+            // Gọi PayOS API
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("x-client-id", payosConfig.getClientId());
+            headers.set("x-api-key", payosConfig.getApiKey());
+
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            String url = payosConfig.getEndpoint() + "/v2/payment-requests/" + orderCode;
+
+            ResponseEntity<PayOSCreatePaymentResponse> responseEntity = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    PayOSCreatePaymentResponse.class
+            );
+
+            PayOSCreatePaymentResponse response = responseEntity.getBody();
+
+            if (response == null || !"00".equals(response.getCode())) {
+                throw new CustomException("Failed to query payment status", HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+
+            return response.getData();
+
+        } catch (Exception e) {
+            log.error("Error querying PayOS payment status", e);
+            throw new CustomException("Error querying payment status: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Cancel payment trên PayOS
+     *
+     * POST /v2/payment-requests/{orderCode}/cancel
+     */
+    public void cancelPayment(Long orderCode, String cancellationReason) {
+        try {
+            log.info("Cancelling PayOS payment - OrderCode: {}", orderCode);
+
+            // Gọi PayOS API
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("x-client-id", payosConfig.getClientId());
+            headers.set("x-api-key", payosConfig.getApiKey());
+
+            Map<String, String> body = new HashMap<>();
+            body.put("cancellationReason", cancellationReason);
+
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+
+            String url = payosConfig.getEndpoint() + "/v2/payment-requests/" + orderCode + "/cancel";
+
+            ResponseEntity<PayOSCreatePaymentResponse> responseEntity = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    PayOSCreatePaymentResponse.class
+            );
+
+            PayOSCreatePaymentResponse response = responseEntity.getBody();
+
+            if (response == null || !"00".equals(response.getCode())) {
+                throw new CustomException("Failed to cancel payment", HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+
+            log.info("✅ PayOS payment cancelled successfully - OrderCode: {}", orderCode);
+
+        } catch (Exception e) {
+            log.error("Error cancelling PayOS payment", e);
+            throw new CustomException("Error cancelling payment: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     // ==================== Private Helper Methods ====================
 
     /**
@@ -200,15 +298,22 @@ public class PayOSPaymentService {
     private String generateSignature(PayOSCreatePaymentRequest request) {
         try {
             // Build signature string theo PayOS docs
-            StringBuilder sb = new StringBuilder();
-            sb.append("amount=").append(request.getAmount());
-            sb.append("&cancelUrl=").append(request.getCancelUrl());
-            sb.append("&description=").append(request.getDescription());
-            sb.append("&orderCode=").append(request.getOrderCode());
-            sb.append("&returnUrl=").append(request.getReturnUrl());
+            // Format: key1=value1&key2=value2&... (sorted alphabetically)
+            Map<String, String> dataMap = new TreeMap<>();
 
-            String data = sb.toString();
-            return generateHMACSHA256(data, payosConfig.getChecksumKey());
+            dataMap.put("amount", String.valueOf(request.getAmount()));
+            dataMap.put("cancelUrl", request.getCancelUrl());
+            dataMap.put("description", request.getDescription());
+            dataMap.put("orderCode", String.valueOf(request.getOrderCode()));
+            dataMap.put("returnUrl", request.getReturnUrl());
+
+            String dataStr = dataMap.entrySet().stream()
+                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+                    .collect(Collectors.joining("&"));
+
+            log.debug("Signature data string: {}", dataStr);
+
+            return generateHMACSHA256(dataStr, payosConfig.getChecksumKey());
 
         } catch (Exception e) {
             log.error("Error generating PayOS signature", e);

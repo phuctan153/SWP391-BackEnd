@@ -393,6 +393,15 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+        // Kiểm tra trùng ảnh cùng type + component trong cùng booking
+        if (bookingImageRepository.existsByBookingAndImageTypeAndVehicleComponent(booking, imageType, vehicleComponent)) {
+            throw new CustomException(
+                    "This booking already has an image for type: " + imageType +
+                            (vehicleComponent != null ? (" and component: " + vehicleComponent) : ""),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
         // Validate logic: Nếu là ảnh BEFORE_RENTAL hoặc AFTER_RENTAL thì BẮT BUỘC phải có vehicleComponent
         if ((imageType == BookingImage.ImageType.BEFORE_RENTAL ||
                 imageType == BookingImage.ImageType.AFTER_RENTAL) &&
@@ -412,6 +421,7 @@ public class BookingServiceImpl implements BookingService {
                 .imageUrl(imageUrl)
                 .imageType(imageType)
                 .vehicleComponent(vehicleComponent)
+                .confirmed(false)
                 .description(description)
                 .build();
 
@@ -483,6 +493,11 @@ public class BookingServiceImpl implements BookingService {
             throw new CustomException("Image does not belong to this booking", HttpStatus.BAD_REQUEST);
         }
 
+        // ❗ Chặn xóa nếu đã confirmed
+        if (Boolean.TRUE.equals(image.getConfirmed())) {
+            throw new CustomException("Ảnh đã được xác nhận, không thể xóa.", HttpStatus.BAD_REQUEST);
+        }
+
         // Xóa file trên Cloudinary
         fileStorageService.deleteFile(image.getImageUrl());
 
@@ -490,6 +505,25 @@ public class BookingServiceImpl implements BookingService {
         bookingImageRepository.delete(image);
 
         log.info("Deleted image {} from booking {}", imageId, bookingId);
+    }
+
+    @Transactional
+    public BookingImageResponseDto confirmBookingImage(Long imageId) {
+
+        BookingImage image = bookingImageRepository.findById(imageId)
+                .orElseThrow(() -> new NotFoundException("Image not found with id: " + imageId));
+
+        // Nếu đã confirm -> báo lỗi
+        if (Boolean.TRUE.equals(image.getConfirmed())) {
+            throw new CustomException("Ảnh đã được xác nhận trước đó.", HttpStatus.BAD_REQUEST);
+        }
+
+        // Set confirmed = true
+        image.setConfirmed(true);
+
+        BookingImage saved = bookingImageRepository.save(image);
+
+        return mapToImageResponseDto(saved);
     }
 
     /**

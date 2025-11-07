@@ -24,6 +24,7 @@ public interface BookingService {
             Long bookingId,
             String imageTypeFilter,
             String vehicleComponentFilter);
+    public BookingImageResponseDto confirmBookingImage(Long imageId);
     public void deleteBookingImage(Long bookingId, Long imageId);
     public Map<String, Object> checkImageChecklist(Long bookingId, BookingImage.ImageType imageType);
 

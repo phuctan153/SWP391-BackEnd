@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,7 @@ public class Booking {
 
     // 🔗 Mối quan hệ
     @ManyToOne
+    @JsonIgnore
     @JoinColumn(name = "renter_id", nullable = false)
     private Renter renter;
 
@@ -31,6 +33,7 @@ public class Booking {
     private Staff staff;
 
     @ManyToOne
+    @JsonIgnore
     @JoinColumn(name = "vehicle_id", nullable = false)
     private Vehicle vehicle;
 

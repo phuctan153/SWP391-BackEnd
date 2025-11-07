@@ -16,5 +16,5 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     // 🔍 Tìm hợp đồng theo trạng thái
     List<Contract> findByStatusOrderByContractDateDesc(Contract.Status status);
 
-
+    Integer countByAdmin_GlobalAdminId(Long adminId);
 }

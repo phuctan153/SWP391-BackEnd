@@ -38,19 +38,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * Tìm booking theo renter
      */
     List<Booking> findByRenter(Renter renter);
-
-    Optional<Booking> findByBookingId(Long bookingId);
-
     // Kiểm tra xem renter có ít nhất 1 booking active không
-    boolean existsByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
     Booking findByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
-
-    /**
-     * Tìm booking theo vehicle ID
-     */
-    List<Booking> findByVehicle_VehicleId(Long vehicleId);
-
-    List<Booking> findByRenterOrderByCreatedAtDesc(Renter renter);
 
     /**
      * Tìm booking theo staff ID
@@ -105,45 +94,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "AND b.expiresAt < :now")
     List<Booking> findExpiredBookings(@Param("now") LocalDateTime now);
 
-    /**
-     * Tìm booking theo renter ID và trạng thái
-     */
-    @Query("SELECT b FROM Booking b WHERE b.renter.renterId = :renterId " +
-            "AND b.status = :status")
-    List<Booking> findByRenterIdAndStatus(
-            @Param("renterId") Long renterId,
-            @Param("status") Booking.Status status
-    );
-
-    /**
-     * Đếm số booking của renter
-     */
-    @Query("SELECT COUNT(b) FROM Booking b WHERE b.renter.renterId = :renterId")
-    Long countByRenterId(@Param("renterId") Long renterId);
-
-    /**
-     * Đếm số booking hoàn thành của renter
-     */
-    @Query("SELECT COUNT(b) FROM Booking b WHERE b.renter.renterId = :renterId " +
-            "AND b.status = 'COMPLETED'")
-    Long countCompletedBookingsByRenterId(@Param("renterId") Long renterId);
-
-    /**
-     * Tìm booking theo khoảng thời gian
-     */
-    @Query("SELECT b FROM Booking b WHERE b.startDateTime >= :startDate " +
-            "AND b.endDateTime <= :endDate")
-    List<Booking> findByDateRange(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
-    /**
-     * Tìm booking cần trả trong ngày hôm nay
-     */
-    @Query("SELECT b FROM Booking b WHERE b.status = 'IN_USE' " +
-            "AND DATE(b.endDateTime) = DATE(:today)")
-    List<Booking> findBookingsDueToday(@Param("today") LocalDateTime today);
-
     List<Booking> findByRenterAndStatus(Renter renter, Booking.Status bookingStatus);
+
+    List<Booking> findByCreatedAtBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
 }

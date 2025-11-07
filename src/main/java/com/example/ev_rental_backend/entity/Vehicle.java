@@ -1,12 +1,12 @@
 package com.example.ev_rental_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.util.List;
 
 @Entity
@@ -26,6 +26,7 @@ public class Vehicle {
 
     // 🔗 Thuộc về trạm nào
     @ManyToOne
+    @JsonIgnore
     @JoinColumn(name = "station_id", nullable = false)
     private Station station;
 

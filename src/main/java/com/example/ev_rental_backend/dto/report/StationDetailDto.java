@@ -1,0 +1,22 @@
+package com.example.ev_rental_backend.dto.report;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class StationDetailDto {
+    private Long stationId;
+    private String name;
+    private String location;
+    private String status;
+    private Integer totalVehicles;
+    private Integer availableVehicles;
+    private Integer totalBookings;
+    private Double revenue;
+    private Integer staffCount;
+}

@@ -20,12 +20,9 @@ public interface IdentityDocumentRepository extends JpaRepository<IdentityDocume
     // 🔹 Tìm giấy tờ cụ thể theo số và loại
     Optional<IdentityDocument> findByDocumentNumberAndType(String documentNumber, IdentityDocument.DocumentType type);
 
-    // 🔹 Tìm các giấy tờ đang chờ duyệt
-    List<IdentityDocument> findByStatus(IdentityDocument.DocumentStatus status);
-
     // 🔹 Tìm tất cả giấy tờ của một renter (theo object)
     List<IdentityDocument> findByRenter(Renter renter);
 
-
+    List<IdentityDocument> findByStatus(IdentityDocument.DocumentStatus status);
 
 }

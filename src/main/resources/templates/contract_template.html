@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8"/>
-    <title>Hợp đồng thuê xe điện</title>
+    <title>Hợp đồng thuê xe điện - EV Rental</title>
     <style>
         body {
             font-family: "DejaVu Sans", sans-serif;
@@ -14,7 +14,15 @@
         h1 {
             text-align: center;
             font-size: 22px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+        }
+
+        .company-name {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: #008000;
+            margin-bottom: 20px;
         }
 
         h2 {
@@ -52,33 +60,25 @@
             margin: 25px 0;
         }
 
-        /* 🛠️ PHẦN ĐÃ SỬA: Dùng FLOAT thay vì FLEXBOX cho chữ ký */
         .sign {
             margin-top: 40px;
             margin-bottom: 40px;
-            /* Dùng clearfix để chứa các float, đảm bảo bố cục không bị vỡ */
             overflow: hidden;
         }
 
-        .left-sign {
+        .left-sign, .right-sign {
             width: 45%;
             text-align: center;
-            float: left; /* Đẩy sang trái */
         }
 
-        .right-sign {
-            width: 45%;
-            text-align: center;
-            float: right; /* Đẩy sang phải */
-        }
-        /* ----------------------------------------------------- */
+        .left-sign { float: left; }
+        .right-sign { float: right; }
 
         .sign p {
             margin: 5px 0;
             font-weight: bold;
         }
 
-        /* ✅ Viền chỗ ký */
         .sign .left-sign p,
         .sign .right-sign p {
             border-top: 1px solid #aaa;
@@ -86,7 +86,11 @@
             margin-top: 40px;
         }
 
-        /* ✅ Footer */
+        .tick {
+            color: green;
+            font-size: 22px;
+        }
+
         .footer {
             font-size: 12px;
             color: #666;
@@ -98,6 +102,7 @@
 <body>
 
 <h1>HỢP ĐỒNG THUÊ XE ĐIỆN</h1>
+<div class="company-name">Công ty ${companyName}</div>
 
 <div class="info">
     <p><b>Ngày lập hợp đồng:</b> ${contractDate?html}</p>
@@ -107,16 +112,15 @@
     <p><b>Nhân viên phụ trách:</b> ${staffName?html}</p>
     <p><b>Tên xe:</b> ${vehicleName?html}</p>
     <p><b>Biển số xe:</b> ${vehiclePlate?html}</p>
-    <p><b>Thời gian thuê:</b> ${startDate?html} → ${endDate?html}</p>
-    <p><b>Giá thuê:</b> ${pricePerDay?html} VNĐ/ngày</p>
-    <p><b>Phụ thu nếu trả trễ:</b>
-        Nếu trả trễ &lt; 4 tiếng kể từ thời điểm hết hạn, tính phí theo giờ là
-        <b>${pricePerHour?html} VNĐ/giờ</b>.
-        Nếu trễ từ 4 tiếng trở lên, tính thêm một ngày thuê với mức giá
-        <b>${pricePerDay?html} VNĐ/ngày</b>.
+    <p><b>Thời gian thuê:</b>
+        ${startDate?string("dd/MM/yyyy HH:mm")} → ${endDate?string("dd/MM/yyyy HH:mm")}
     </p>
 
-    <#-- ✅ Hiển thị admin nếu có -->
+    <p><b>Giá thuê:</b> ${pricePerDay?string(",##0")} VNĐ/ngày</p>
+    <p><b>Phụ thu nếu trả trễ:</b>
+        Nếu trả trễ &lt; 4 tiếng: <b>${pricePerHour?string(",##0")} VNĐ/giờ</b>.<br/>
+        Nếu trễ ≥ 4 tiếng: <b>${pricePerDay?string(",##0")} VNĐ/ngày</b>.
+    </p>
     <#if adminName?has_content>
     <p><b>Quản trị viên phê duyệt:</b> ${adminName?html}</p>
 </#if>
@@ -125,7 +129,6 @@
 <hr/>
 
 <h2>ĐIỀU KHOẢN HỢP ĐỒNG</h2>
-
 <div class="terms">
     <#list terms as term>
     <div class="term">
@@ -141,9 +144,8 @@
     <div class="left-sign">
         <p><b>Người thuê:</b><br/>
             <#if contractStatus == "FULLY_SIGNED">
-            ✅ ĐÃ KÝ<br/>
-            <small>(Ngày ký: ${renterSignedAt}
-                )</small>
+            <span class="tick"><img src="https://img.icons8.com/emoji/20/000000/check-mark-emoji.png" width="18" height="18" alt="tick"/></span> ĐÃ KÝ<br/>
+            <small>(Ngày ký: ${renterSignedAt})</small>
             <#elseif contractStatus == "ADMIN_SIGNED">
             ⏳ CHỜ NGƯỜI THUÊ KÝ
             <#else>
@@ -155,17 +157,15 @@
     <div class="right-sign">
         <p><b>Quản trị viên phê duyệt:</b><br/>
             <#if contractStatus == "ADMIN_SIGNED" || contractStatus == "FULLY_SIGNED">
-            ✅ ĐÃ PHÊ DUYỆT
-            <#if adminSignedAt?has_content>
-            <br/><small>(Ngày ký: ${adminSignedAt?string("dd/MM/yyyy")})</small>
+            <span class="tick"><img src="https://img.icons8.com/emoji/20/000000/check-mark-emoji.png" width="18" height="18" alt="tick"/></span> ĐÃ PHÊ DUYỆT<br/>
+            <small>(Ngày ký: ${adminSignedAt})</small>
+            <#elseif contractStatus == "PENDING_ADMIN_SIGNATURE">
+            ⏳ CHỜ PHÊ DUYỆT
+            <#else>
+            __________________________
         </#if>
-        <#elseif contractStatus == "PENDING_ADMIN_SIGNATURE">
-        ⏳ CHỜ PHÊ DUYỆT
-        <#else>
-        __________________________
-    </#if>
-    </p>
-</div>
+        </p>
+    </div>
 </div>
 
 <div class="footer">

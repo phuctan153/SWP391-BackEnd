@@ -683,7 +683,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setActualReturnTime(LocalDateTime.now());
 
         // BR-14: Tính phí trả trễ
-        Double lateFee = validator.calculateLateFee(booking);
+//        Double lateFee = validator.calculateLateFee(booking);
 
         // BR-13: Cập nhật tình trạng xe
         Vehicle vehicle = booking.getVehicle();
@@ -701,20 +701,20 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // Cập nhật booking status
-        booking.setStatus(Booking.Status.COMPLETED);
+//        booking.setStatus(Booking.Status.COMPLETED);
 
         bookingRepository.save(booking);
         vehicleRepository.save(vehicle);
 
-        log.info("Vehicle returned for booking {}, late fee: {}", bookingId, lateFee);
+        log.info("Vehicle returned for booking {}", bookingId);
 
         // Tạo response
         return ReturnResponseDto.builder()
                 .bookingId(bookingId)
                 .actualReturnTime(booking.getActualReturnTime())
-                .lateFee(lateFee)
+//                .lateFee(lateFee)
                 .damageFee(requestDto.getDamageFee())
-                .totalFee(lateFee + (requestDto.getDamageFee() != null ? requestDto.getDamageFee() : 0.0))
+//                .totalFee(lateFee + (requestDto.getDamageFee() != null ? requestDto.getDamageFee() : 0.0))
                 .message("Vehicle returned successfully")
                 .build();
     }

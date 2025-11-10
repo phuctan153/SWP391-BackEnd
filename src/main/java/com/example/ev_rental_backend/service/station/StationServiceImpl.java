@@ -7,6 +7,7 @@ import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.entity.Vehicle;
 import com.example.ev_rental_backend.exception.CustomException;
+import com.example.ev_rental_backend.exception.NotFoundException;
 import com.example.ev_rental_backend.mapper.StationMapper;
 import com.example.ev_rental_backend.repository.StationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,6 +73,22 @@ public class StationServiceImpl implements StationService {
 
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public StationResponseDTO getStationById(Long stationId) {
+        Station station = stationRepository.findById(stationId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy trạm có ID: " + stationId));
+
+        return StationResponseDTO.builder()
+                .stationId(station.getStationId())
+                .name(station.getName())
+                .latitude(station.getLatitude())
+                .longitude(station.getLongitude())
+                .status(station.getStatus().name())
+//                .vehicleCount(station.getVehicles() != null ? station.getVehicles().size() : 0)
+                .build();
+    }
+
 
     @Override
     public List<StationResponseDTO> getAllStations() {

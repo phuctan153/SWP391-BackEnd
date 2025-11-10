@@ -45,6 +45,19 @@ public class StationController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{stationId}")
+    public ResponseEntity<ApiResponse<StationResponseDTO>> getStationById(@PathVariable Long stationId) {
+        StationResponseDTO station = stationService.getStationById(stationId);
+
+        ApiResponse<StationResponseDTO> response = ApiResponse.<StationResponseDTO>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(station)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
     /**
      * 📦 Lấy tất cả xe thuộc 1 trạm
      * Ví dụ: GET /api/stations/1/vehicles

@@ -417,31 +417,31 @@ public class BookingController {
 
 
     //staff handle cái trả xe đó
-    @PutMapping("/bookings/{bookingId}/return")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<ApiResponse<BookingResponseDto>> confirmVehicleReturn(
-            @PathVariable Long bookingId,
-            HttpServletRequest request) {
-
-        // ✅ Lấy email từ token
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new CustomException("Thiếu hoặc sai định dạng Authorization header", HttpStatus.UNAUTHORIZED);
-        }
-
-        String token = authHeader.substring(7);
-        String staffEmail = jwtTokenUtil.extractEmail(token);
-
-        // ✅ Gọi service kèm email staff
-        BookingResponseDto updatedBooking = bookingService.confirmVehicleReturn(bookingId, staffEmail);
-
-        return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
-                .status("success")
-                .code(HttpStatus.OK.value())
-                .message("Xác nhận trả xe thành công, thời gian trả được ghi nhận.")
-                .data(updatedBooking)
-                .build());
-    }
+//    @PutMapping("/{bookingId}/return")
+//    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+//    public ResponseEntity<ApiResponse<BookingResponseDto>> confirmVehicleReturn(
+//            @PathVariable Long bookingId,
+//            HttpServletRequest request) {
+//
+//        // ✅ Lấy email từ token
+//        String authHeader = request.getHeader("Authorization");
+//        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+//            throw new CustomException("Thiếu hoặc sai định dạng Authorization header", HttpStatus.UNAUTHORIZED);
+//        }
+//
+//        String token = authHeader.substring(7);
+//        String staffEmail = jwtTokenUtil.extractEmail(token);
+//
+//        // ✅ Gọi service kèm email staff
+//        BookingResponseDto updatedBooking = bookingService.confirmVehicleReturn(bookingId, staffEmail);
+//
+//        return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
+//                .status("success")
+//                .code(HttpStatus.OK.value())
+//                .message("Xác nhận trả xe thành công, thời gian trả được ghi nhận.")
+//                .data(updatedBooking)
+//                .build());
+//    }
 
 
 

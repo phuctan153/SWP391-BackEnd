@@ -16,6 +16,7 @@ import com.example.ev_rental_backend.service.renter.RenterService;
 import com.example.ev_rental_backend.service.renter.RenterServiceImpl;
 import com.example.ev_rental_backend.service.staff.StaffService;
 import com.example.ev_rental_backend.service.staff.StaffServiceImpl;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -169,6 +170,37 @@ public class RegisterController {
             return ResponseEntity.status(401).body(errorResponse);
         }
     }
+
+    @PostMapping("/logout/staff")
+    public ResponseEntity<ApiResponse<String>> logoutStaff(HttpServletRequest request) {
+        try {
+            // ✅ Lấy JWT token từ header
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new RuntimeException("Thiếu Authorization header hoặc token không hợp lệ");
+            }
+
+            String token = authHeader.substring(7);
+            staffService.logoutStaff(token);
+
+            ApiResponse<String> response = ApiResponse.<String>builder()
+                    .status("success")
+                    .code(200)
+                    .data("Đăng xuất thành công. Trạng thái đã chuyển sang INACTIVE.")
+                    .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (RuntimeException e) {
+            ApiResponse<String> errorResponse = ApiResponse.<String>builder()
+                    .status("error")
+                    .code(401)
+                    .data(e.getMessage())
+                    .build();
+            return ResponseEntity.status(401).body(errorResponse);
+        }
+    }
+
 
 
     @PostMapping("/login/admin")

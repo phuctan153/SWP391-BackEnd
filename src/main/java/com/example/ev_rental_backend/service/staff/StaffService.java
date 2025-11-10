@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface StaffService {
     public Staff loginStaff(String email, String password);
+    public void logoutStaff(String token);
 
     public List<StaffListDTO> getStaffByStation(Long stationId);
     public StaffDetailDTO getStaffDetail(Long staffId);

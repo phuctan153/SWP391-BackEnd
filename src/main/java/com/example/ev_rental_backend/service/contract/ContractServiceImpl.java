@@ -302,17 +302,28 @@ public class ContractServiceImpl implements ContractService{
             // 📧 Thông báo cho renter
             sendEmail(
                     renter.getEmail(),
-                    "✅ Xe của bạn đã sẵn sàng",
+                    "✅ Booking của bạn đã sẵn sàng để nhận xe và ký hợp đồng",
                     """
                     Xin chào %s,
-    
-                    Hợp đồng #%d đã được quản trị viên ký duyệt thành công.
-                    Xe của bạn đã sẵn sàng để nhận tại trạm thuê.
-    
-                    Trân trọng,
+                
+                    Hợp đồng #%d của bạn đã được quản trị viên phê duyệt thành công.
+                    Booking của bạn hiện đã sẵn sàng để nhận xe tại trạm thuê.
+                
+                    Vui lòng đến trạm để:
+                    • Kiểm tra tình trạng xe cùng nhân viên tại trạm.  
+                    • Ký xác nhận hợp đồng thuê trước khi bắt đầu hành trình.
+                
+                    ⚠️ Lưu ý: Nếu bạn không hoàn tất thủ tục check-in và nhận xe trong vòng 1 giờ kể từ thời gian đã đặt, 
+                    booking sẽ tự động hết hạn và xe sẽ được trả về trạng thái khả dụng cho người thuê khác.
+                
+                    Chúc bạn có một chuyến đi an toàn và thuận lợi cùng EV Rental!
+                
+                    Trân trọng,  
                     EV Rental System
                     """.formatted(renter.getFullName(), contract.getContractId())
             );
+
+
 
         } else {
             // ❌ Trường hợp bị từ chối

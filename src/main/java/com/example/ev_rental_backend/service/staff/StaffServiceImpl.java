@@ -1,6 +1,7 @@
 package com.example.ev_rental_backend.service.staff;
 
 
+import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.staff.StaffDetailDTO;
 import com.example.ev_rental_backend.dto.staff.StaffListDTO;
 import com.example.ev_rental_backend.entity.Booking;
@@ -28,21 +29,39 @@ public class StaffServiceImpl implements StaffService {
     @Autowired
     BookingRepository bookingRepository;
 
+    @Autowired
+    JwtTokenUtil jwtTokenUtil;
+
     @Override
     public Staff loginStaff(String email, String password) {
         Staff staff = staffRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống"));
 
-        // 🔹 So sánh chuỗi đơn giản (vì password chưa mã hóa)
+        // So sánh mật khẩu
         if (!password.equals(staff.getPassword())) {
             throw new RuntimeException("Mật khẩu không chính xác");
         }
 
-        if (staff.getStatus() == Staff.Status.INACTIVE) {
-            throw new RuntimeException("Tài khoản đã bị vô hiệu hóa, vui lòng liên hệ quản trị viên");
-        }
+        // ✅ Cho phép đăng nhập, chỉ cần set lại trạng thái ACTIVE
+        staff.setStatus(Staff.Status.ACTIVE);
+        staffRepository.save(staff);
 
         return staff;
+    }
+
+    @Override
+    public void logoutStaff(String token) {
+        // ✅ Lấy email từ JWT token
+        String email = jwtTokenUtil.extractEmail(token);
+
+        Staff staff = staffRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên có email: " + email));
+
+        // ✅ Cập nhật trạng thái
+        staff.setStatus(Staff.Status.INACTIVE);
+        staffRepository.save(staff);
+
+        System.out.println("🔻 Staff " + email + " đã đăng xuất và chuyển sang INACTIVE");
     }
 
     @Override

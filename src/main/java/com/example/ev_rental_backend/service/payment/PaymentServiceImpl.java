@@ -657,7 +657,7 @@ public class PaymentServiceImpl implements PaymentService {
             if (invoice.getType() == Invoice.Type.DEPOSIT) {
                 Booking booking = invoice.getBooking();
                 booking.setDepositStatus(Booking.DepositStatus.PAID);
-                booking.setStatus(Booking.Status.RESERVED);
+//                booking.setStatus(Booking.Status.RESERVED);
                 bookingRepository.save(booking);
             }
 

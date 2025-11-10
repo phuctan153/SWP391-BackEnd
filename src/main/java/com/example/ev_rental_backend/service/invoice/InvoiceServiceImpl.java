@@ -113,9 +113,11 @@ public class InvoiceServiceImpl implements InvoiceService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe có ID: " + bookingId));
 
-        if (booking.getStatus() != Booking.Status.COMPLETED) {
-            throw new CustomException("Chỉ có thể tạo hóa đơn cuối khi đơn đặt xe đã hoàn tất",
-                    HttpStatus.BAD_REQUEST);
+        if (booking.getActualReturnTime() == null) {
+            throw new CustomException(
+                    "Chỉ có thể tạo hóa đơn cuối sau khi xe đã được trả thực tế",
+                    HttpStatus.BAD_REQUEST
+            );
         }
 
         boolean hasFinalInvoice = booking.getInvoices().stream()

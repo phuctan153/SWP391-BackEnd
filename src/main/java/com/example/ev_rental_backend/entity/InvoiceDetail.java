@@ -29,8 +29,8 @@ public class InvoiceDetail {
     private LineType type;
 
     // 🔗 1–1 với SparePart (một dòng chỉ chứa một phụ tùng)
-    @OneToOne
-    @JoinColumn(name = "price_list_id", unique = true)
+    @ManyToOne
+    @JoinColumn(name = "price_list_id")
     private PriceList priceList;
 
     // 📝 Mô tả chi tiết

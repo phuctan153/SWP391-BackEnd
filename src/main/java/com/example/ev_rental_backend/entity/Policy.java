@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -40,15 +41,18 @@ public class Policy {
     @Column(name = "status", nullable = false)
     private Status status;
 
-    @Column(name = "created_at", nullable = false)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private LocalDateTime updatedAt;
+
 
     @PrePersist
     public void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
         if (this.status == null) this.status = Status.ACTIVE;
         if (this.appliedScope == null) this.appliedScope = AppliedScope.GLOBAL;
     }
@@ -57,6 +61,7 @@ public class Policy {
     public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
 
     // 🔹 ENUM: loại quy định
     public enum PolicyType {

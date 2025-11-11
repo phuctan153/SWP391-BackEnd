@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -42,14 +43,22 @@ public class PolicyServiceImpl implements PolicyService {
 
     @Override
     public Policy createPolicy(Policy policy) {
-        // Nếu policy mới là ACTIVE → deactivate các policy cùng loại khác
+        // ✅ Gán thời gian hiện tại nếu chưa có
+        LocalDateTime now = LocalDateTime.now();
+        policy.setCreatedAt(now);
+        policy.setUpdatedAt(now);
+
+        // ✅ Nếu policy mới là ACTIVE → deactivate các policy cùng loại khác
         if (policy.getStatus() == Status.ACTIVE) {
             List<Policy> sameTypePolicies = policyRepository.findByPolicyType(policy.getPolicyType());
             sameTypePolicies.forEach(p -> p.setStatus(Status.INACTIVE));
             policyRepository.saveAll(sameTypePolicies);
         }
+
+        // ✅ Lưu policy mới
         return policyRepository.save(policy);
     }
+
 
     @Override
     public Policy updatePolicy(Long id, Policy updatedPolicy) {

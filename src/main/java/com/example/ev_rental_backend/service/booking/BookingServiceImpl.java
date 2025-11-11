@@ -713,7 +713,7 @@ public class BookingServiceImpl implements BookingService {
                 .bookingId(bookingId)
                 .actualReturnTime(booking.getActualReturnTime())
 //                .lateFee(lateFee)
-                .damageFee(requestDto.getDamageFee())
+//                .damageFee(requestDto.getDamageFee())
 //                .totalFee(lateFee + (requestDto.getDamageFee() != null ? requestDto.getDamageFee() : 0.0))
                 .message("Vehicle returned successfully")
                 .build();

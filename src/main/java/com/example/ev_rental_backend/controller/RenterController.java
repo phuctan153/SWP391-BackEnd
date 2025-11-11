@@ -60,6 +60,10 @@ public class RenterController {
             RenterResponseDTO responseDTO = renterMapper.toResponseDto(renter);
             responseDTO.setKycStatus(renterService.getKycStatusForRenter(renter));
 
+            if (renter.getWallet() != null) {
+                responseDTO.setWalletId(renter.getWallet().getWalletId());
+            }
+
             // ✅ Lấy CCCD và GPLX của renter
             List<IdentityDocument> docs = identityDocumentRepository.findByRenter(renter);
             for (IdentityDocument doc : docs) {

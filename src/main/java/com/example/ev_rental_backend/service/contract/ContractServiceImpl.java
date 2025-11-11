@@ -50,7 +50,13 @@ public class ContractServiceImpl implements ContractService{
 
         // 🔹 4️⃣ Gán staff vào booking (trước khi tạo hợp đồng)
         booking.setStaff(staff);
-        bookingRepository.save(booking);  // ✅ Lưu lại staff ngay
+//        bookingRepository.save(booking);  // ✅ Lưu lại staff ngay
+
+        bookingRepository.saveAndFlush(booking); // flush ngay
+
+// 🔹 5️⃣ Reload lại booking từ DB để đảm bảo dữ liệu mới nhất
+        booking = bookingRepository.findById(dto.getBookingId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking"));
 
         // 🔹 5️⃣ Tạo hợp đồng
         Contract contract = Contract.builder()
@@ -121,7 +127,7 @@ public class ContractServiceImpl implements ContractService{
                 .renterName(renterFullName)
                 .renterEmail(renter.getEmail())
                 .renterPhone(renter.getPhoneNumber())
-                .staffName(booking.getStaff().getFullName())
+//                .staffName(booking.getStaff().getFullName())
                 .startDateTime(booking.getStartDateTime())
                 .endDateTime(booking.getEndDateTime())
                 .pricePerHour(booking.getPriceSnapshotPerHour())

@@ -20,6 +20,7 @@ public class RenterResponseDTO {
     private String phoneNumber;
     private LocalDate dateOfBirth;
     private String address;
+    private Long walletId;
 
     // ✅ Trạng thái hệ thống
     private String status;          // VERIFIED / PENDING_VERIFICATION / DELETED

@@ -3,6 +3,8 @@ package com.example.ev_rental_backend.service.payment;
 import com.example.ev_rental_backend.config.PayOSConfigProperties;
 import com.example.ev_rental_backend.dto.payos.*;
 import com.example.ev_rental_backend.exception.CustomException;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -137,34 +139,58 @@ public class PayOSPaymentService {
 
     public boolean verifyWebhookSignature(PayOSWebhookRequest webhookData) {
         try {
-            // Build data string for signature theo thứ tự alphabet
-            PayOSWebhookData data = webhookData.getData();
+//            // Build data string for signature theo thứ tự alphabet
+//            PayOSWebhookData data = webhookData.getData();
+//
+//            // 🔑 QUAN TRỌNG: PayOS yêu cầu sort keys theo alphabet
+//            Map<String, String> dataMap = new TreeMap<>(); // TreeMap tự động sort
+//
+//            dataMap.put("amount", String.valueOf(data.getAmount()));
+//            dataMap.put("code", data.getCode());
+//            dataMap.put("desc", data.getDesc());
+//            dataMap.put("orderCode", String.valueOf(data.getOrderCode()));
+//
+//            // Optional fields (chỉ thêm nếu có giá trị)
+//            if (data.getReference() != null) {
+//                dataMap.put("reference", data.getReference());
+//            }
+//            if (data.getTransactionDateTime() != null) {
+//                dataMap.put("transactionDateTime", data.getTransactionDateTime());
+//            }
+//
+//            // Build data string: key1=value1&key2=value2&...
+//            String dataStr = dataMap.entrySet().stream()
+//                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+//                    .collect(Collectors.joining("&"));
+//
+//            log.debug("Webhook data string for signature: {}", dataStr);
+//
+//            // Generate signature
+//            String calculatedSignature = generateHMACSHA256(dataStr, payosConfig.getChecksumKey());
 
-            // 🔑 QUAN TRỌNG: PayOS yêu cầu sort keys theo alphabet
-            Map<String, String> dataMap = new TreeMap<>(); // TreeMap tự động sort
+            ObjectMapper mapper = new ObjectMapper();
+            // Giữ nguyên: loại bỏ null fields
+            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-            dataMap.put("amount", String.valueOf(data.getAmount()));
-            dataMap.put("code", data.getCode());
-            dataMap.put("desc", data.getDesc());
-            dataMap.put("orderCode", String.valueOf(data.getOrderCode()));
+            // --- BẮT ĐẦU PHẦN CHỈNH SỬA QUAN TRỌNG ---
 
-            // Optional fields (chỉ thêm nếu có giá trị)
-            if (data.getReference() != null) {
-                dataMap.put("reference", data.getReference());
-            }
-            if (data.getTransactionDateTime() != null) {
-                dataMap.put("transactionDateTime", data.getTransactionDateTime());
-            }
+            // 1. Chuyển DTO PayOSWebhookData sang Map<String, Object>
+            Map<String, Object> dataMap = mapper.convertValue(webhookData.getData(), new TypeReference<Map<String, Object>>() {});
 
-            // Build data string: key1=value1&key2=value2&...
-            String dataStr = dataMap.entrySet().stream()
-                    .map(entry -> entry.getKey() + "=" + entry.getValue())
-                    .collect(Collectors.joining("&"));
+            // 2. Sắp xếp Map theo key (alphabetical order)
+            // Dùng TreeMap để đảm bảo key được sắp xếp
+            Map<String, Object> sortedDataMap = new TreeMap<>(dataMap);
 
-            log.debug("Webhook data string for signature: {}", dataStr);
+            // 3. Serialize Map đã sắp xếp thành chuỗi JSON COMPACT (Không khoảng trắng, không xuống dòng)
+            // Đây là bước quan trọng nhất để khớp với chuỗi PayOS dùng để ký.
+            String rawData = mapper.writeValueAsString(sortedDataMap);
 
-            // Generate signature
-            String calculatedSignature = generateHMACSHA256(dataStr, payosConfig.getChecksumKey());
+            log.debug("Raw JSON used for signature (sorted and compact): {}", rawData);
+
+            // --- KẾT THÚC PHẦN CHỈNH SỬA QUAN TRỌNG ---
+
+            // Giữ nguyên logic tính toán signature
+            String calculatedSignature = generateHMACSHA256(rawData, payosConfig.getChecksumKey());
 
             // Compare
             boolean isValid = calculatedSignature.equals(webhookData.getSignature());
@@ -172,7 +198,7 @@ public class PayOSPaymentService {
             if (!isValid) {
                 log.error("Invalid PayOS webhook signature - Expected: {}, Received: {}",
                         calculatedSignature, webhookData.getSignature());
-                log.error("Data string used: {}", dataStr);
+                log.error("Data string used: {}", rawData);
             } else {
                 log.info("✅ PayOS webhook signature verified successfully");
             }

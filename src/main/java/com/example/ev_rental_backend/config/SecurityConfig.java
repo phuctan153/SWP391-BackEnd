@@ -60,7 +60,8 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs.yaml",
                                 "/v3/api-docs/swagger-config",
-                                "/error"
+                                "/error",
+                                "/api/payments/payos/webhook"
                         ).permitAll()
 
                         // 🚫 Chặn public access trực tiếp file hợp đồng
@@ -108,11 +109,10 @@ public class SecurityConfig {
         // ⚡ Cho phép các domain frontend
         configuration.setAllowedOrigins(List.of(
                 "https://swp-391-frontend-mu.vercel.app",
-                "https://nonpending-lelia-ballistically.ngrok-free.dev",
                 "http://localhost:3000",
                 "http://localhost:8080"
         ));
-
+        configuration.addAllowedOriginPattern("https://*.ngrok-free.dev");
         // ⚡ Cho phép các method cơ bản
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 

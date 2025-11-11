@@ -37,6 +37,10 @@ public class Invoice {
     @Column(nullable = false)
     private Double totalAmount;
 
+    // ✅ Số tiền cần HOÀN TRẢ cho khách (nếu cọc > tổng chi phí)
+    @Column
+    private Double refundAmount = 0.0;
+
     // Trạng thái thanh toán
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

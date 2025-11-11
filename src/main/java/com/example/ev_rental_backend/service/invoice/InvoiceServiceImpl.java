@@ -416,21 +416,52 @@ public class InvoiceServiceImpl implements InvoiceService {
                     .sum();
         }
 
-        // Bước 3: Tổng tiền = tiền thuê + chi phí phụ
-        Double finalAmount = rentalAmount + extraCharges;
+        // Bước 3: Tổng tiền thực tế cần thu = tiền thuê + chi phí phụ
+        Double actualTotalCost = rentalAmount + extraCharges;
 
-        // Không cho tổng tiền âm
-        if (finalAmount < 0) {
-            log.warn("Recalculated invoice {} would have negative total: rental={}, extras={}, deposit={}",
-                    invoiceId, rentalAmount, extraCharges);
-            finalAmount = 0.0;
+        if (invoice.getType() == Invoice.Type.DEPOSIT) {
+            // ✅ Invoice DEPOSIT: chỉ là số tiền đặt cọc
+            invoice.setTotalAmount(invoice.getDepositAmount() != null ? invoice.getDepositAmount() : 0.0);
+            invoice.setRefundAmount(0.0);
+
+        } else if (invoice.getType() == Invoice.Type.FINAL) {
+            // ✅ Invoice FINAL:
+            Double depositAmount = invoice.getDepositAmount() != null ? invoice.getDepositAmount() : 0.0;
+
+            // Trường hợp 1: Chi phí > Cọc → Khách cần trả thêm
+            if (actualTotalCost > depositAmount) {
+                invoice.setTotalAmount(actualTotalCost - depositAmount);
+                invoice.setRefundAmount(0.0);
+
+                log.info("Invoice {}: Customer needs to pay additional: {}",
+                        invoiceId, invoice.getTotalAmount());
+            }
+            // Trường hợp 2: Cọc > Chi phí → Hoàn trả cho khách
+            else if (depositAmount > actualTotalCost) {
+                invoice.setTotalAmount(0.0);  // Không cần thu thêm
+                invoice.setRefundAmount(depositAmount - actualTotalCost);
+
+                log.info("Invoice {}: Customer will be refunded: {}",
+                        invoiceId, invoice.getRefundAmount());
+            }
+            // Trường hợp 3: Cọc = Chi phí → Không thu thêm, không hoàn
+            else {
+                invoice.setTotalAmount(0.0);
+                invoice.setRefundAmount(0.0);
+
+                log.info("Invoice {}: Deposit matches total cost, no additional payment or refund",
+                        invoiceId);
+            }
+
+        } else {
+            throw new CustomException("Unknown invoice type: " + invoice.getType(), HttpStatus.BAD_REQUEST);
         }
 
-        invoice.setTotalAmount(finalAmount);
         invoiceRepository.save(invoice);
 
-        log.info("Recalculated invoice {}: rental={}, extras={}, deposit={}, final total={}",
-                invoiceId, rentalAmount, extraCharges, finalAmount);
+        log.info("Recalculated invoice {}: type={}, rental={}, extras={}, actualTotal={}, deposit={}, finalAmount={}, refundAmount={}",
+                invoiceId, invoice.getType(), rentalAmount, extraCharges, actualTotalCost,
+                invoice.getDepositAmount(), invoice.getTotalAmount(), invoice.getRefundAmount());
     }
 
     /**
@@ -448,7 +479,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         Double rentalAmount = booking.getTotalAmount() != null ? booking.getTotalAmount() : 0.0;
         Double depositAmount = invoice.getDepositAmount() != null ? invoice.getDepositAmount() : 0.0;
 
-        // Tính tổng chi phí phụ theo từng loại
+        // Tính tổng chi phí phụ
         Map<String, Double> extraChargesByType = new HashMap<>();
         Double totalExtraCharges = 0.0;
         List<InvoiceDetailResponseDto> detailsList = new ArrayList<>();
@@ -465,7 +496,17 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
         }
 
-        Double subtotal = rentalAmount + totalExtraCharges;
+        Double actualTotalCost = rentalAmount + totalExtraCharges;
+
+        // ✅ Tính toán số tiền cần thu / hoàn trả
+        Double amountToPay = 0.0;
+        Double amountToRefund = 0.0;
+
+        if (actualTotalCost > depositAmount) {
+            amountToPay = actualTotalCost - depositAmount;
+        } else if (depositAmount > actualTotalCost) {
+            amountToRefund = depositAmount - actualTotalCost;
+        }
 
         Map<String, Object> extraChargesMap = new HashMap<>();
         extraChargesMap.put("total", totalExtraCharges);
@@ -478,8 +519,22 @@ public class InvoiceServiceImpl implements InvoiceService {
         breakdown.put("rentalAmount", rentalAmount);
         breakdown.put("depositAmount", depositAmount);
         breakdown.put("extraCharges", extraChargesMap);
-        breakdown.put("finalAmount", subtotal);
+        breakdown.put("actualTotalCost", actualTotalCost);
+        breakdown.put("amountToPay", amountToPay);           // ✅ Số tiền cần thu thêm
+        breakdown.put("amountToRefund", amountToRefund);     // ✅ Số tiền cần hoàn trả
         breakdown.put("currentInvoiceTotal", invoice.getTotalAmount());
+        breakdown.put("currentRefundAmount", invoice.getRefundAmount());
+
+        // Kiểm tra tính nhất quán
+        boolean isConsistent =
+                Math.abs(amountToPay - invoice.getTotalAmount()) < 0.01 &&
+                        Math.abs(amountToRefund - (invoice.getRefundAmount() != null ? invoice.getRefundAmount() : 0.0)) < 0.01;
+
+        breakdown.put("isConsistent", isConsistent);
+
+        if (!isConsistent) {
+            breakdown.put("warning", "Invoice amounts are not consistent with calculations");
+        }
 
         return breakdown;
     }
@@ -517,6 +572,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .depositAmount(invoice.getDepositAmount())
                 .totalAmount(invoice.getTotalAmount())
                 .amountRemaining(amountRemaining) // ← Thêm field mới
+                .refundAmount(invoice.getRefundAmount())
                 .status(invoice.getStatus())
                 .paymentMethod(invoice.getPaymentMethod())
                 .notes(invoice.getNotes())

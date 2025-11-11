@@ -535,13 +535,15 @@ public class BookingServiceImpl implements BookingService {
 
         // Lấy các hạng mục bắt buộc phải chụp
         List<BookingImage.VehicleComponent> requiredComponents = List.of(
-                BookingImage.VehicleComponent.EXTERIOR_FRONT,
-                BookingImage.VehicleComponent.EXTERIOR_BACK,
-                BookingImage.VehicleComponent.EXTERIOR_LEFT,
-                BookingImage.VehicleComponent.EXTERIOR_RIGHT,
-                BookingImage.VehicleComponent.DASHBOARD,
-                BookingImage.VehicleComponent.MILEAGE_METER,
-                BookingImage.VehicleComponent.BATTERY_INDICATOR
+                BookingImage.VehicleComponent.NAP_CAPO,        // Tương đương EXTERIOR_FRONT
+                BookingImage.VehicleComponent.COP_SAU,         // Tương đương EXTERIOR_BACK
+                BookingImage.VehicleComponent.CUA_TRAI,        // Tương đương EXTERIOR_LEFT
+                BookingImage.VehicleComponent.CUA_PHAI,        // Tương đương EXTERIOR_RIGHT
+
+                // 🔹 Nội thất & bảng điều khiển
+                BookingImage.VehicleComponent.TAPLO,           // Tương đương DASHBOARD
+                BookingImage.VehicleComponent.DONG_HO_KM,      // Tương đương MILEAGE_METER
+                BookingImage.VehicleComponent.DONG_HO_PIN
         );
 
         // Lấy các hạng mục đã chụp

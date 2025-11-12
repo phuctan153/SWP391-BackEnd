@@ -160,11 +160,16 @@ public class VehicleServiceImpl implements VehicleService {
     }
 
     @Override
+    @Transactional
     public void deleteVehicle(Long id) {
         Vehicle v = vehicleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Vehicle not found"));
-        vehicleRepository.delete(v);
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy xe với ID: " + id));
+
+        // ✅ Cập nhật trạng thái thay vì xóa vật lý
+        v.setStatus(Vehicle.Status.CANCELLED);
+        vehicleRepository.save(v);
     }
+
 
     private VehicleDTO mapToDTO(Vehicle v) {
         return VehicleDTO.builder()

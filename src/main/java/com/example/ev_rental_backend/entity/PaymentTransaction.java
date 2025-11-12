@@ -77,6 +77,7 @@ public class PaymentTransaction {
         INVOICE_PAYOS,      // Thanh toán hóa đơn qua Payos
         WALLET_TOPUP,       // Nạp tiền vào ví
         WALLET_WITHDRAW,     // Rút tiền khỏi ví
-        WALLET_REFUND_DEPOSIT
+        WALLET_REFUND_DEPOSIT,
+        REFUND_CASH
     }
 }

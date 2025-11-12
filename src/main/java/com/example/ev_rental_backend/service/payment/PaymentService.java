@@ -4,9 +4,14 @@ import com.example.ev_rental_backend.dto.payment.*;
 import com.example.ev_rental_backend.dto.payos.PayOSPaymentInfoDto;
 import com.example.ev_rental_backend.dto.payos.PayOSWebhookRequest;
 import com.example.ev_rental_backend.dto.payos.PayOSWebhookResponse;
+import com.example.ev_rental_backend.dto.refund.RefundRequestDTO;
 import com.example.ev_rental_backend.entity.Invoice;
 
 public interface PaymentService {
+
+    PaymentResponseDto refundDepositByCash(Long invoiceId, RefundRequestDTO requestDto);
+
+    PaymentResponseDto refundDepositToWallet(Long invoiceId, RefundRequestDTO requestDto);
 
     public PaymentResponseDto payByCash(Long invoiceId, PaymentRequestDto requestDto);
     /**

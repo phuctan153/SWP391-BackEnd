@@ -1,5 +1,7 @@
 package com.example.ev_rental_backend.dto.refund;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +14,9 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class RefundRequestDTO {
-    private Long renterId;
-    private BigDecimal amount;
-    private String reason;
+    @NotNull(message = "Số tiền hoàn không được để trống")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền hoàn phải lớn hơn 0")
+    private Double amount;
+
+    private String reason; // Ví dụ: "Hoàn phần dư cọc"
 }

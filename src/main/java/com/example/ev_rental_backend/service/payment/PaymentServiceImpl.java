@@ -4,6 +4,7 @@ import com.example.ev_rental_backend.dto.payment.*;
 import com.example.ev_rental_backend.dto.payos.PayOSPaymentInfoDto;
 import com.example.ev_rental_backend.dto.payos.PayOSWebhookRequest;
 import com.example.ev_rental_backend.dto.payos.PayOSWebhookResponse;
+import com.example.ev_rental_backend.dto.refund.RefundRequestDTO;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
@@ -33,6 +34,108 @@ public class PaymentServiceImpl implements PaymentService {
     private final BookingRepository bookingRepository;
     private final NotificationService notificationService;
     private final PayOSPaymentService payosPaymentService;
+
+
+    @Override
+    @Transactional
+    public PaymentResponseDto refundDepositByCash(Long invoiceId, RefundRequestDTO requestDto) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
+
+        // 🔒 Kiểm tra điều kiện hợp lệ
+        if (invoice.getType() != Invoice.Type.DEPOSIT || invoice.getStatus() != Invoice.Status.PAID) {
+            throw new CustomException("Chỉ hóa đơn đặt cọc đã thanh toán mới được hoàn tiền.");
+        }
+
+        double refundAmount = requestDto.getAmount();
+
+        // 🔹 Cập nhật invoice
+        invoice.setRefundAmount(refundAmount);
+        invoice.setNotes("Hoàn tiền mặt: " +
+                (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
+        invoiceRepository.save(invoice);
+
+        // 🔹 Tạo transaction hoàn tiền mặt
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .invoice(invoice)
+                .amount(BigDecimal.valueOf(refundAmount))
+                .transactionType(PaymentTransaction.TransactionType.REFUND_CASH)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .notes("Hoàn tiền mặt phần dư đặt cọc cho invoice #" + invoiceId)
+                .transactionTime(LocalDateTime.now())
+                .build();
+        paymentTransactionRepository.save(transaction);
+
+        // 🔹 Cập nhật trạng thái đặt cọc trong Booking (nếu có)
+        Booking booking = invoice.getBooking();
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking);
+
+        // 🔹 Trả về phản hồi
+        return PaymentResponseDto.builder()
+                .transactionId(transaction.getTransactionId())
+                .invoiceId(invoice.getInvoiceId())
+                .amount(transaction.getAmount())
+                .status(transaction.getStatus())
+                .transactionType(transaction.getTransactionType())
+                .transactionTime(transaction.getTransactionTime())
+                .message("Hoàn tiền mặt thành công.")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponseDto refundDepositToWallet(Long invoiceId, RefundRequestDTO requestDto) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
+
+        if (invoice.getType() != Invoice.Type.DEPOSIT || invoice.getStatus() != Invoice.Status.PAID) {
+            throw new CustomException("Chỉ hóa đơn đặt cọc đã thanh toán mới được hoàn tiền.");
+        }
+
+        Booking booking = invoice.getBooking();
+        Wallet wallet = walletRepository.findByRenter(booking.getRenter())
+                .orElseThrow(() -> new CustomException("Không tìm thấy ví của người thuê."));
+
+        BigDecimal refundAmount = BigDecimal.valueOf(requestDto.getAmount());
+
+        // 🔹 Cộng tiền vào ví
+        wallet.setBalance(wallet.getBalance().add(refundAmount));
+        walletRepository.save(wallet);
+
+        // 🔹 Cập nhật invoice
+        invoice.setRefundAmount(refundAmount.doubleValue());
+        invoice.setNotes("Hoàn tiền ví: " +
+                (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
+        invoiceRepository.save(invoice);
+
+        // 🔹 Tạo transaction hoàn tiền ví
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .invoice(invoice)
+                .wallet(wallet)
+                .amount(refundAmount)
+                .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .notes("Hoàn tiền phần dư đặt cọc vào ví cho invoice #" + invoiceId)
+                .transactionTime(LocalDateTime.now())
+                .build();
+        paymentTransactionRepository.save(transaction);
+
+        // 🔹 Cập nhật trạng thái đặt cọc trong Booking
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking);
+
+        // 🔹 Trả về phản hồi
+        return PaymentResponseDto.builder()
+                .transactionId(transaction.getTransactionId())
+                .invoiceId(invoice.getInvoiceId())
+                .amount(transaction.getAmount())
+                .status(transaction.getStatus())
+                .transactionType(transaction.getTransactionType())
+                .transactionTime(transaction.getTransactionTime())
+                .message("Hoàn tiền qua ví thành công.")
+                .build();
+    }
 
     /**
      * Thanh toán bằng tiền mặt (Staff xác nhận)

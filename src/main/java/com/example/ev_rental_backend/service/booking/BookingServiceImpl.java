@@ -812,7 +812,7 @@ public class BookingServiceImpl implements BookingService {
         vehicle.setStatus(hasDamage ? Vehicle.Status.IN_REPAIR : Vehicle.Status.AVAILABLE);
 
         // 🔹 9️⃣ Cập nhật trạng thái booking
-        booking.setStatus(Booking.Status.COMPLETED);
+//        booking.setStatus(Booking.Status.COMPLETED);
 
         // 🔹 🔟 Lưu dữ liệu
         bookingRepository.save(booking);

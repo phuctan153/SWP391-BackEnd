@@ -266,6 +266,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         Double lineTotal = savedDetail.getLineTotal() != null ? savedDetail.getLineTotal() : 0.0;
         addAmountToInvoice(invoice, lineTotal);
 
+        if (invoice.getDepositAmount() != null) {
+            double newRefund = invoice.getDepositAmount() - invoice.getTotalAmount();
+            invoice.setRefundAmount(Math.max(newRefund, 0.0));  // Không cho âm
+        }
+
+        invoiceRepository.save(invoice);
+
         log.info("Added invoice detail: {} to invoice {}, line total: {}, new invoice total: {}",
                 savedDetail.getInvoiceDetailId(), invoiceId, lineTotal, invoice.getTotalAmount());
 

@@ -38,43 +38,54 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentResponseDto refundDepositByCash(Long invoiceId, RefundRequestDTO requestDto) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
+    public PaymentResponseDto refundDepositByCash(Long finalInvoiceId, RefundRequestDTO requestDto) {
 
-        // 🔒 Kiểm tra điều kiện hợp lệ
-        if (invoice.getType() != Invoice.Type.DEPOSIT || invoice.getStatus() != Invoice.Status.PAID) {
-            throw new CustomException("Chỉ hóa đơn đặt cọc đã thanh toán mới được hoàn tiền.");
+        // 1️⃣ Lấy FINAL invoice
+        Invoice finalInvoice = invoiceRepository.findById(finalInvoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + finalInvoiceId));
+
+        if (finalInvoice.getType() != Invoice.Type.FINAL) {
+            throw new CustomException("Chỉ thực hiện hoàn cọc thông qua hóa đơn FINAL.");
         }
 
+        Booking booking = finalInvoice.getBooking();
+
+        // 2️⃣ Tìm DEPOSIT invoice của cùng booking
+        Invoice depositInvoice = booking.getInvoices().stream()
+                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
+                .findFirst()
+                .orElseThrow(() ->
+                        new CustomException("Không tìm thấy hóa đơn đặt cọc đã thanh toán cho booking #" + booking.getBookingId())
+                );
+
+        // 3️⃣ Lấy số tiền cần hoàn
         double refundAmount = requestDto.getAmount();
 
-        // 🔹 Cập nhật invoice
-        invoice.setRefundAmount(refundAmount);
-        invoice.setNotes("Hoàn tiền mặt: " +
+        // 4️⃣ Cập nhật FINAL invoice
+        finalInvoice.setRefundAmount(refundAmount);
+        finalInvoice.setNotes("Hoàn tiền mặt: " +
                 (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
-        invoiceRepository.save(invoice);
+        invoiceRepository.save(finalInvoice);
 
-        // 🔹 Tạo transaction hoàn tiền mặt
+        // 5️⃣ Tạo transaction hoàn tiền mặt
         PaymentTransaction transaction = PaymentTransaction.builder()
-                .invoice(invoice)
+                .invoice(finalInvoice)
                 .amount(BigDecimal.valueOf(refundAmount))
                 .transactionType(PaymentTransaction.TransactionType.REFUND_CASH)
                 .status(PaymentTransaction.Status.SUCCESS)
-                .notes("Hoàn tiền mặt phần dư đặt cọc cho invoice #" + invoiceId)
+                .notes("Hoàn tiền mặt phần dư đặt cọc cho booking #" + booking.getBookingId())
                 .transactionTime(LocalDateTime.now())
                 .build();
         paymentTransactionRepository.save(transaction);
 
-        // 🔹 Cập nhật trạng thái đặt cọc trong Booking (nếu có)
-        Booking booking = invoice.getBooking();
+        // 6️⃣ Cập nhật trạng thái đặt cọc
         booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
         bookingRepository.save(booking);
 
-        // 🔹 Trả về phản hồi
+        // 7️⃣ Trả về response
         return PaymentResponseDto.builder()
                 .transactionId(transaction.getTransactionId())
-                .invoiceId(invoice.getInvoiceId())
+                .invoiceId(finalInvoice.getInvoiceId())
                 .amount(transaction.getAmount())
                 .status(transaction.getStatus())
                 .transactionType(transaction.getTransactionType())
@@ -83,59 +94,73 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
     }
 
+
     @Override
     @Transactional
-    public PaymentResponseDto refundDepositToWallet(Long invoiceId, RefundRequestDTO requestDto) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
+    public PaymentResponseDto refundDepositToWallet(Long finalInvoiceId, RefundRequestDTO requestDto) {
 
-        if (invoice.getType() != Invoice.Type.DEPOSIT || invoice.getStatus() != Invoice.Status.PAID) {
-            throw new CustomException("Chỉ hóa đơn đặt cọc đã thanh toán mới được hoàn tiền.");
+        // 1️⃣ Lấy FINAL invoice
+        Invoice finalInvoice = invoiceRepository.findById(finalInvoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy FINAL invoice #" + finalInvoiceId));
+
+        if (finalInvoice.getType() != Invoice.Type.FINAL) {
+            throw new CustomException("Chỉ được hoàn cọc thông qua hóa đơn cuối (FINAL).");
         }
 
-        Booking booking = invoice.getBooking();
+        Booking booking = finalInvoice.getBooking();
+
+        // 2️⃣ Tìm invoice DEPOSIT của cùng booking
+        Invoice depositInvoice = booking.getInvoices().stream()
+                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
+                .findFirst()
+                .orElseThrow(() ->
+                        new CustomException("Không tìm thấy hóa đơn đặt cọc đã thanh toán cho booking #" + booking.getBookingId())
+                );
+
+        // 3️⃣ Lấy ví của renter
         Wallet wallet = walletRepository.findByRenter(booking.getRenter())
                 .orElseThrow(() -> new CustomException("Không tìm thấy ví của người thuê."));
 
         BigDecimal refundAmount = BigDecimal.valueOf(requestDto.getAmount());
 
-        // 🔹 Cộng tiền vào ví
+        // 4️⃣ Cộng tiền vào ví
         wallet.setBalance(wallet.getBalance().add(refundAmount));
         walletRepository.save(wallet);
 
-        // 🔹 Cập nhật invoice
-        invoice.setRefundAmount(refundAmount.doubleValue());
-        invoice.setNotes("Hoàn tiền ví: " +
+        // 5️⃣ Cập nhật FINAL invoice (không phải DEPOSIT)
+        finalInvoice.setRefundAmount(refundAmount.doubleValue());
+        finalInvoice.setNotes("Hoàn tiền ví: " +
                 (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
-        invoiceRepository.save(invoice);
+        invoiceRepository.save(finalInvoice);
 
-        // 🔹 Tạo transaction hoàn tiền ví
+        // 6️⃣ Tạo transaction gắn với FINAL invoice
         PaymentTransaction transaction = PaymentTransaction.builder()
-                .invoice(invoice)
+                .invoice(finalInvoice)
                 .wallet(wallet)
                 .amount(refundAmount)
                 .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
                 .status(PaymentTransaction.Status.SUCCESS)
-                .notes("Hoàn tiền phần dư đặt cọc vào ví cho invoice #" + invoiceId)
+                .notes("Hoàn tiền đặt cọc vào ví cho booking #" + booking.getBookingId())
                 .transactionTime(LocalDateTime.now())
                 .build();
         paymentTransactionRepository.save(transaction);
 
-        // 🔹 Cập nhật trạng thái đặt cọc trong Booking
+        // 7️⃣ Cập nhật trạng thái đặt cọc của booking
         booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
         bookingRepository.save(booking);
 
-        // 🔹 Trả về phản hồi
+        // 8️⃣ Response
         return PaymentResponseDto.builder()
                 .transactionId(transaction.getTransactionId())
-                .invoiceId(invoice.getInvoiceId())
+                .invoiceId(finalInvoice.getInvoiceId())
                 .amount(transaction.getAmount())
                 .status(transaction.getStatus())
                 .transactionType(transaction.getTransactionType())
                 .transactionTime(transaction.getTransactionTime())
-                .message("Hoàn tiền qua ví thành công.")
+                .message("Hoàn tiền đặt cọc vào ví thành công qua hóa đơn FINAL.")
                 .build();
     }
+
 
     /**
      * Thanh toán bằng tiền mặt (Staff xác nhận)

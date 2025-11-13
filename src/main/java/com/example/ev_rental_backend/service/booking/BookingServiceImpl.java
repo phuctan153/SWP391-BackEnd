@@ -764,30 +764,30 @@ public class BookingServiceImpl implements BookingService {
     public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto, HttpServletRequest request) {
         // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found"));
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe."));
 
         // 🔹 2️⃣ Kiểm tra nếu đã có thời gian trả xe (đã xử lý trước đó)
         if (booking.getActualReturnTime() != null) {
             Staff existingStaff = booking.getStaffReturn();
-            String staffName = (existingStaff != null) ? existingStaff.getFullName() : "Unknown";
+            String staffName = (existingStaff != null) ? existingStaff.getFullName() : "Không xác định";
             return ReturnResponseDto.builder()
                     .bookingId(bookingId)
                     .actualReturnTime(booking.getActualReturnTime())
-                    .message("⚠️ Vehicle has already been returned by " + staffName
-                            + " at " + booking.getActualReturnTime())
+                    .message("⚠️ Xe đã được trả trước đó bởi " + staffName
+                            + " vào lúc " + booking.getActualReturnTime())
                     .build();
         }
 
         // 🔹 3️⃣ Kiểm tra trạng thái booking
         if (booking.getStatus() != Booking.Status.IN_USE) {
-            throw new CustomException("Booking must be in IN_USE status to return",
+            throw new CustomException("Chỉ có thể trả xe khi đơn đang ở trạng thái 'Đang sử dụng'.",
                     HttpStatus.BAD_REQUEST);
         }
 
         // 🔹 4️⃣ Lấy token từ header và extract email
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new CustomException("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED);
+            throw new CustomException("Thiếu hoặc sai định dạng Authorization header.", HttpStatus.UNAUTHORIZED);
         }
 
         String token = authHeader.substring(7);
@@ -795,7 +795,7 @@ public class BookingServiceImpl implements BookingService {
 
         // 🔹 5️⃣ Tìm Staff theo email
         Staff staff = staffRepository.findByEmail(email)
-                .orElseThrow(() -> new NotFoundException("Staff not found for email: " + email));
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy thông tin nhân viên có email: " + email));
 
         // 🔹 6️⃣ Gán staffReturn = nhân viên hiện tại
         booking.setStaffReturn(staff);
@@ -818,7 +818,7 @@ public class BookingServiceImpl implements BookingService {
         bookingRepository.save(booking);
         vehicleRepository.save(vehicle);
 
-        log.info("✅ Vehicle returned for booking {} by staff {}", bookingId, staff.getFullName());
+        log.info("✅ Xe thuộc đơn {} đã được nhân viên {} xác nhận trả.", bookingId, staff.getFullName());
 
         // 🔹 11️⃣ Trả response
         return ReturnResponseDto.builder()

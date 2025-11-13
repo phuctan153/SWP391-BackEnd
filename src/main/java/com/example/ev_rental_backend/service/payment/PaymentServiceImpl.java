@@ -65,6 +65,8 @@ public class PaymentServiceImpl implements PaymentService {
         finalInvoice.setRefundAmount(refundAmount);
         finalInvoice.setNotes("Hoàn tiền mặt: " +
                 (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
+
+        finalInvoice.setStatus(Invoice.Status.PAID);
         invoiceRepository.save(finalInvoice);
 
         // 5️⃣ Tạo transaction hoàn tiền mặt
@@ -131,6 +133,7 @@ public class PaymentServiceImpl implements PaymentService {
         finalInvoice.setRefundAmount(refundAmount.doubleValue());
         finalInvoice.setNotes("Hoàn tiền ví: " +
                 (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
+        finalInvoice.setStatus(Invoice.Status.PAID);
         invoiceRepository.save(finalInvoice);
 
         // 6️⃣ Tạo transaction gắn với FINAL invoice

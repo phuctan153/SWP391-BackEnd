@@ -48,6 +48,10 @@ public class PaymentServiceImpl implements PaymentService {
             throw new CustomException("Chỉ thực hiện hoàn cọc thông qua hóa đơn FINAL.");
         }
 
+        if (finalInvoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Hóa đơn này đã được thanh toán – không thể hoàn tiền thêm.");
+        }
+
         Booking booking = finalInvoice.getBooking();
 
         // 2️⃣ Tìm DEPOSIT invoice của cùng booking
@@ -107,6 +111,10 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (finalInvoice.getType() != Invoice.Type.FINAL) {
             throw new CustomException("Chỉ được hoàn cọc thông qua hóa đơn cuối (FINAL).");
+        }
+
+        if (finalInvoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Hóa đơn này đã được thanh toán – không thể hoàn tiền thêm.");
         }
 
         Booking booking = finalInvoice.getBooking();

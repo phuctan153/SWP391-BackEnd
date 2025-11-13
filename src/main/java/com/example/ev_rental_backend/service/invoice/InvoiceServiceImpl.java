@@ -175,12 +175,22 @@ public class InvoiceServiceImpl implements InvoiceService {
         // 4️⃣ Tổng tiền cuối cùng
         double totalAmount = rentalCost + lateFee + damageCost;
 
+        double refundAmount = 0.0;
+        double amountRemaining = 0.0;
+
+        if (depositAmount > totalAmount) {
+            refundAmount = depositAmount - totalAmount;
+        } else {
+            amountRemaining = totalAmount - depositAmount;
+        }
+
         // 🧾 Tạo hóa đơn FINAL
         Invoice invoice = Invoice.builder()
                 .booking(booking)
                 .type(Invoice.Type.FINAL)
                 .depositAmount(depositAmount)
                 .totalAmount(totalAmount)
+                .refundAmount(refundAmount)
                 .status(Invoice.Status.UNPAID)
                 .paymentMethod(Invoice.PaymentMethod.CASH)
                 .notes("Bao gồm tiền thuê, phụ phí trễ và chi phí hư hại (nếu có)")

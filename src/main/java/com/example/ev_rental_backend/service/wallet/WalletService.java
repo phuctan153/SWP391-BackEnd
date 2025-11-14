@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.service.wallet;
 
+import com.example.ev_rental_backend.dto.payment.PaymentTransactionResponseDto;
 import com.example.ev_rental_backend.entity.PaymentTransaction;
 import com.example.ev_rental_backend.entity.Wallet;
 
@@ -21,7 +22,7 @@ public interface WalletService {
 
     Wallet restoreWallet(Long id);
 
-    List<PaymentTransaction> getTransactionsByWalletId(Long walletId);
+    public List<PaymentTransactionResponseDto> getTransactionsByWalletId(Long walletId);
     Wallet refundDepositWhenAdminCancels(Long bookingId);
 
     Wallet refundDepositWhenRenterCancels(Long bookingId);

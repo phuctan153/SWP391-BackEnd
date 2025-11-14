@@ -1,6 +1,7 @@
 package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
+import com.example.ev_rental_backend.dto.payment.PaymentTransactionResponseDto;
 import com.example.ev_rental_backend.dto.wallet.WalletResponseDTO;
 import com.example.ev_rental_backend.entity.PaymentTransaction;
 import com.example.ev_rental_backend.entity.Wallet;
@@ -156,7 +157,7 @@ public class WalletController {
     // 🧾 Lịch sử giao dịch — renter chỉ xem ví của chính mình
     @PreAuthorize("hasAnyRole('ADMIN','RENTER')")
     @GetMapping("/{id}/transactions")
-    public ResponseEntity<ApiResponse<List<PaymentTransaction>>> getTransactions(
+    public ResponseEntity<ApiResponse<List<PaymentTransactionResponseDto>>> getTransactions(
             @PathVariable Long id,
             Authentication authentication) {
 
@@ -167,7 +168,7 @@ public class WalletController {
             String email = authentication.getName();
             if (!wallet.getRenter().getEmail().equals(email)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-                        ApiResponse.<List<PaymentTransaction>>builder()
+                        ApiResponse.<List<PaymentTransactionResponseDto>>builder()
                                 .status("error")
                                 .code(HttpStatus.FORBIDDEN.value())
                                 .message("Bạn không thể xem giao dịch của ví người khác!")
@@ -176,10 +177,15 @@ public class WalletController {
             }
         }
 
-        List<PaymentTransaction> transactions = walletService.getTransactionsByWalletId(id);
-        return ResponseEntity.ok(ApiResponse.<List<PaymentTransaction>>builder()
-                .status("success").code(HttpStatus.OK.value())
-                .data(transactions).message("Lấy lịch sử giao dịch thành công").build());
+        List<PaymentTransactionResponseDto> transactions =
+                walletService.getTransactionsByWalletId(id);
+
+        return ResponseEntity.ok(ApiResponse.<List<PaymentTransactionResponseDto>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(transactions)
+                .message("Lấy lịch sử giao dịch thành công")
+                .build());
     }
 
     // 💰 Hoàn tiền (ADMIN)

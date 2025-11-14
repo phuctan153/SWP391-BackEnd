@@ -1,6 +1,8 @@
 package com.example.ev_rental_backend.service.wallet;
 
+import com.example.ev_rental_backend.dto.payment.PaymentTransactionResponseDto;
 import com.example.ev_rental_backend.entity.*;
+import com.example.ev_rental_backend.mapper.PaymentTransactionMapper;
 import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.policy.PolicyService;
 import jakarta.transaction.Transactional;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +24,7 @@ public class WalletServiceImpl implements WalletService {
     private final BookingRepository bookingRepository;
     private final PolicyRepository policyRepository;
     private final PolicyService policyService;
+    private final PaymentTransactionMapper paymentTransactionMapper;
 
     @Override
     public List<Wallet> getAllWallets() {
@@ -118,8 +122,11 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    public List<PaymentTransaction> getTransactionsByWalletId(Long walletId) {
-        return transactionRepository.findByWallet_WalletId(walletId);
+    public List<PaymentTransactionResponseDto> getTransactionsByWalletId(Long walletId) {
+        return transactionRepository.findByWallet_WalletId(walletId)
+                .stream()
+                .map(paymentTransactionMapper::toDto)
+                .collect(Collectors.toList());
     }
 
     @Override

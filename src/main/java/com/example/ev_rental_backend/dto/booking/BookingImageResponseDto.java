@@ -21,4 +21,6 @@ public class BookingImageResponseDto {
     private String vehicleComponent;
     private String description;
     private LocalDateTime createdAt;
+
+    private Boolean confirmed;
 }

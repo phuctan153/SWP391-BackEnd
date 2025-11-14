@@ -500,12 +500,14 @@ public class BookingServiceImpl implements BookingService {
             String imageTypeFilter,
             String vehicleComponentFilter) {
 
+        // 1. Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
 
+        // 2. Lấy danh sách ảnh gốc
         List<BookingImage> images = booking.getImages();
 
-        // Filter theo imageType nếu có
+        // 3. Filter theo imageType nếu có
         if (imageTypeFilter != null && !imageTypeFilter.trim().isEmpty()) {
             try {
                 BookingImage.ImageType filterType = BookingImage.ImageType.valueOf(imageTypeFilter.toUpperCase());
@@ -517,7 +519,7 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // Filter theo vehicleComponent nếu có
+        // 4. Filter theo vehicleComponent nếu có
         if (vehicleComponentFilter != null && !vehicleComponentFilter.trim().isEmpty()) {
             try {
                 BookingImage.VehicleComponent filterComponent =
@@ -531,8 +533,23 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+        // 5. ✅ Map "tay" (inline) danh sách đã filter sang DTO
         return images.stream()
-                .map(this::mapToImageResponseDto)
+                .map(image -> { // Bắt đầu map inline
+                    if (image == null) {
+                        return null; // Trường hợp hiếm
+                    }
+                    return BookingImageResponseDto.builder()
+                            .imageId(image.getImageId())
+                            .bookingId(image.getBooking() != null ? image.getBooking().getBookingId() : null)
+                            .imageUrl(image.getImageUrl())
+                            .imageType(image.getImageType())
+                            .vehicleComponent(image.getVehicleComponent() != null ? image.getVehicleComponent().name() : null)
+                            .description(image.getDescription())
+                            .createdAt(image.getCreatedAt())
+                            .confirmed(image.getConfirmed()) // <-- Map trường confirmed
+                            .build();
+                }) // Kết thúc map inline
                 .collect(Collectors.toList());
     }
 

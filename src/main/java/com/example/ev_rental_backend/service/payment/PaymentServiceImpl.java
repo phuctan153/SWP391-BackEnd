@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.service.payment;
 
 import com.example.ev_rental_backend.dto.payment.*;
 import com.example.ev_rental_backend.dto.payos.PayOSPaymentInfoDto;
+import com.example.ev_rental_backend.dto.payos.PayOSWebhookData;
 import com.example.ev_rental_backend.dto.payos.PayOSWebhookRequest;
 import com.example.ev_rental_backend.dto.payos.PayOSWebhookResponse;
 import com.example.ev_rental_backend.dto.refund.RefundRequestDTO;
@@ -506,13 +507,18 @@ public class PaymentServiceImpl implements PaymentService {
 
             // 2. Parse transaction ID từ order code
             // Trong production, query từ DB bằng orderCode
+//            Long orderCode = webhookRequest.getData().getOrderCode();
+//            PaymentTransaction transaction = paymentTransactionRepository
+//                    .findByOrderCode(orderCode)
+//                    .stream()
+//                    .filter(t -> t.getTransactionType() == PaymentTransaction.TransactionType.INVOICE_PAYOS)
+//                    .filter(t -> t.getStatus() == PaymentTransaction.Status.PENDING)
+//                    .findFirst()
+//                    .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
+            // 2. Tìm transaction theo orderCode
             Long orderCode = webhookRequest.getData().getOrderCode();
             PaymentTransaction transaction = paymentTransactionRepository
                     .findByOrderCode(orderCode)
-                    .stream()
-                    .filter(t -> t.getTransactionType() == PaymentTransaction.TransactionType.INVOICE_PAYOS)
-                    .filter(t -> t.getStatus() == PaymentTransaction.Status.PENDING)
-                    .findFirst()
                     .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
 
             // 3. Kiểm tra transaction chưa xử lý (tránh duplicate webhook)
@@ -745,9 +751,16 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Processing successful payment - TransactionId: {}, MoMoTransId: {}",
                 transaction.getTransactionId(), ipnRequest.getCode());
 
+        PayOSWebhookData webhookData = ipnRequest.getData();
+
         // 1. Cập nhật transaction status
         transaction.setStatus(PaymentTransaction.Status.SUCCESS);
+        transaction.setReferenceCode(webhookData.getReference());
+        transaction.setPaymentLinkId(webhookData.getPaymentLinkId());
+        transaction.setNotes("Payment successful via PayOS");
         paymentTransactionRepository.save(transaction);
+
+        log.info("Updated transaction {} to SUCCESS", transaction.getTransactionId());
 
         // 2. Cập nhật invoice status
         Invoice invoice = transaction.getInvoice();
@@ -946,6 +959,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         notificationRepository.save(notification);
+        log.info("Sent failure notification to renter {}",
+                invoice.getBooking().getRenter().getRenterId());
     }
 
     // Inject thêm các repository cần thiết

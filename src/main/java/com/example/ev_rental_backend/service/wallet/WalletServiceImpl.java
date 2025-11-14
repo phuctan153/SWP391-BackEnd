@@ -136,6 +136,16 @@ public class WalletServiceImpl implements WalletService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
 
+        // ✅ LOGIC MỚI 1: Kiểm tra trạng thái cọc
+        if (booking.getDepositStatus() == Booking.DepositStatus.REFUNDED) {
+            throw new RuntimeException("Booking #" + bookingId + " đã được hoàn cọc trước đó. Không thể thực hiện lại.");
+        }
+
+        // (Bạn nên kiểm tra cả trạng thái PAID, nhưng theo yêu cầu chỉ cần chặn REFUNDED)
+        // if (booking.getDepositStatus() != Booking.DepositStatus.PAID) {
+        //     throw new RuntimeException("Booking #" + bookingId + " không ở trạng thái PAID, không thể hoàn cọc.");
+        // }
+
         Renter renter = booking.getRenter();
         Wallet wallet = walletRepository.findByRenter(renter)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của renter #" + renter.getRenterId()));
@@ -169,6 +179,10 @@ public class WalletServiceImpl implements WalletService {
         transactionRepository.save(transaction);
         walletRepository.save(wallet);
 
+        // ✅ LOGIC MỚI 2: Cập nhật trạng thái Booking
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking); // Lưu thay đổi của booking
+
         return wallet;
     }
 
@@ -178,6 +192,11 @@ public class WalletServiceImpl implements WalletService {
         // 🔹 Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
+
+        // ✅ LOGIC MỚI 1: Kiểm tra trạng thái cọc
+        if (booking.getDepositStatus() == Booking.DepositStatus.REFUNDED) {
+            throw new RuntimeException("Booking #" + bookingId + " đã được hoàn cọc trước đó. Không thể thực hiện lại.");
+        }
 
         Renter renter = booking.getRenter();
         Wallet wallet = walletRepository.findByRenter(renter)
@@ -193,7 +212,7 @@ public class WalletServiceImpl implements WalletService {
 
         double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
 
-// ✅ Lấy tiền cọc hiện tại
+        // ✅ Lấy tiền cọc hiện tại
         double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
 
         BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
@@ -212,6 +231,10 @@ public class WalletServiceImpl implements WalletService {
 
         transactionRepository.save(transaction);
         walletRepository.save(wallet);
+
+        // ✅ LOGIC MỚI 2: Cập nhật trạng thái Booking
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking); // Lưu thay đổi của booking
 
         return wallet;
     }

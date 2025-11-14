@@ -653,12 +653,30 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setStatus(Invoice.Status.PAID);
             invoice.setCompletedAt(LocalDateTime.now());
 
-            // Hoàn cọc nếu là final invoice
-            if (invoice.getType() == Invoice.Type.FINAL && invoice.getDepositAmount() > 0) {
-                refundDeposit(invoice);
+            // Cập nhật deposit status
+            if (invoice.getType() == Invoice.Type.DEPOSIT) {
+                Booking booking = invoice.getBooking();
+                booking.setDepositStatus(Booking.DepositStatus.PAID);
+//                booking.setStatus(Booking.Status.RESERVED);
+                bookingRepository.save(booking);
             }
+
         } else if (totalPaid > 0) {
-            invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            if (invoice.getType() == Invoice.Type.FINAL) {
+                List<Policy> policies = policyRepository.findByPolicyType(Policy.PolicyType.DEPOSIT_AMOUNT);
+                if (policies.isEmpty()) {
+                    throw new NotFoundException("Late payment fee policy not found");
+                }
+                Policy policy = policies.getFirst();
+                Double total = amountRemaining - policy.getValue();
+                if (total <= 0) {
+                    // Đã thanh toán đủ sau khi trừ phí
+                    invoice.setStatus(Invoice.Status.PAID);
+                    invoice.setCompletedAt(LocalDateTime.now());
+                }
+            } else {
+                invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            }
         }
 
         invoiceRepository.save(invoice);
@@ -741,11 +759,11 @@ public class PaymentServiceImpl implements PaymentService {
                 transaction.getAmount().doubleValue()
         );
 
-        // 4. Nếu là final invoice và đã thanh toán đủ → hoàn cọc
-        if (invoice.getType() == Invoice.Type.FINAL
-                && invoice.getStatus() == Invoice.Status.PAID) {
-            refundDeposit(invoice);
-        }
+//        // 4. Nếu là final invoice và đã thanh toán đủ → hoàn cọc
+//        if (invoice.getType() == Invoice.Type.FINAL
+//                && invoice.getStatus() == Invoice.Status.PAID) {
+//            refundDeposit(invoice);
+//        }
 
         log.info("Payment processed successfully - TransactionId: {}",
                 transaction.getTransactionId());

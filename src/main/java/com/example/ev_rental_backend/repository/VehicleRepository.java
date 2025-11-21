@@ -51,5 +51,5 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
     Vehicle findWithBookingsByVehicleId(@Param("vehicleId") Long vehicleId);
 
     boolean existsByPlateNumber(String plateNumber);
-
+    List<Vehicle> findByStation_StationId(Long stationId);
 }

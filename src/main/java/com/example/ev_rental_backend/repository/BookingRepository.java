@@ -15,25 +15,36 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * Tìm booking theo trạng thái
      */
     List<Booking> findByStatus(Booking.Status status);
+
+    List<Booking> findByVehicle_Station_StationId(Long stationId);
+
+    @Query("""
+    SELECT b FROM Booking b
+    WHERE b.vehicle.vehicleId = :vehicleId
+      AND b.status IN ('PENDING', 'RESERVED', 'IN_USE')
+      AND (
+          (:startDateTime < b.endDateTime) AND (:extendedEndDate > b.startDateTime)
+      )
+""")
+    List<Booking> findBookingsWithHoldPeriod(
+            @Param("vehicleId") Long vehicleId,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("extendedEndDate") LocalDateTime extendedEndDate
+    );
+
+
+
     /**
      * Tìm booking theo renter
      */
     List<Booking> findByRenter(Renter renter);
-
-    Optional<Booking> findByBookingId(Long bookingId);
-
     // Kiểm tra xem renter có ít nhất 1 booking active không
-    boolean existsByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
-
-    /**
-     * Tìm booking theo vehicle ID
-     */
-    List<Booking> findByVehicle_VehicleId(Long vehicleId);
+    Booking findByRenter_RenterIdAndStatusIn(Long renterId, List<Booking.Status> statuses);
 
     /**
      * Tìm booking theo staff ID
      */
-    List<Booking> findByStaff_StaffId(Long staffId);
+//    List<Booking> findByStaff_StaffId(Long staffId);
     @Query("""
         SELECT DISTINCT b
         FROM Booking b
@@ -51,6 +62,27 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         WHERE b.bookingId = :bookingId
     """)
     Optional<Booking> findBookingWithDetails(Long bookingId);
+
+
+
+//    List<Booking> findByStaff_StaffIdAndStatus(Long staffId, Booking.Status status);\
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE (b.staffReceive.staffId = :staffId OR b.staffReturn.staffId = :staffId)
+    """)
+    List<Booking> findByAnyStaff(@Param("staffId") Long staffId);
+
+    @Query("""
+    SELECT b FROM Booking b
+    WHERE (b.staffReceive.staffId = :staffId OR b.staffReturn.staffId = :staffId)
+    AND b.status = :status
+    """)
+
+
+
+
+    List<Booking> findByAnyStaffAndStatus(@Param("staffId") Long staffId,
+                                          @Param("status") Booking.Status status);
     /**
      * Tìm các booking có thời gian trùng lặp với xe cụ thể
      * BR-07: Kiểm tra xe có sẵn trong khoảng thời gian không
@@ -81,43 +113,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "AND b.expiresAt < :now")
     List<Booking> findExpiredBookings(@Param("now") LocalDateTime now);
 
-    /**
-     * Tìm booking theo renter ID và trạng thái
-     */
-    @Query("SELECT b FROM Booking b WHERE b.renter.renterId = :renterId " +
-            "AND b.status = :status")
-    List<Booking> findByRenterIdAndStatus(
-            @Param("renterId") Long renterId,
-            @Param("status") Booking.Status status
-    );
+    List<Booking> findByRenterAndStatus(Renter renter, Booking.Status bookingStatus);
 
-    /**
-     * Đếm số booking của renter
-     */
-    @Query("SELECT COUNT(b) FROM Booking b WHERE b.renter.renterId = :renterId")
-    Long countByRenterId(@Param("renterId") Long renterId);
-
-    /**
-     * Đếm số booking hoàn thành của renter
-     */
-    @Query("SELECT COUNT(b) FROM Booking b WHERE b.renter.renterId = :renterId " +
-            "AND b.status = 'COMPLETED'")
-    Long countCompletedBookingsByRenterId(@Param("renterId") Long renterId);
-
-    /**
-     * Tìm booking theo khoảng thời gian
-     */
-    @Query("SELECT b FROM Booking b WHERE b.startDateTime >= :startDate " +
-            "AND b.endDateTime <= :endDate")
-    List<Booking> findByDateRange(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
-    /**
-     * Tìm booking cần trả trong ngày hôm nay
-     */
-    @Query("SELECT b FROM Booking b WHERE b.status = 'IN_USE' " +
-            "AND DATE(b.endDateTime) = DATE(:today)")
-    List<Booking> findBookingsDueToday(@Param("today") LocalDateTime today);
+    List<Booking> findByCreatedAtBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
 }

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,4 +23,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("SELECT i FROM Invoice i WHERE i.booking.bookingId = :bookingId AND i.type = :type")
     Optional<Invoice> findByBookingIdAndType(@Param("bookingId") Long bookingId,
                                              @Param("type") Invoice.Type type);
+
+    List<Invoice> findByCompletedAtBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
 }

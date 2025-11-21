@@ -1,63 +1,244 @@
 package com.example.ev_rental_backend.service.wallet;
 
-import com.example.ev_rental_backend.entity.PaymentTransaction;
-import com.example.ev_rental_backend.entity.PriceList;
-import com.example.ev_rental_backend.entity.Wallet;
-import com.example.ev_rental_backend.repository.PaymentTransactionRepository;
-import com.example.ev_rental_backend.repository.PriceListRepository;
-import com.example.ev_rental_backend.repository.WalletRepository;
+import com.example.ev_rental_backend.dto.payment.PaymentTransactionResponseDto;
+import com.example.ev_rental_backend.entity.*;
+import com.example.ev_rental_backend.mapper.PaymentTransactionMapper;
+import com.example.ev_rental_backend.repository.*;
+import com.example.ev_rental_backend.service.policy.PolicyService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class WalletServiceImpl implements WalletService {
 
     private final WalletRepository walletRepository;
-    private final PriceListRepository priceListRepository;
-    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final RenterRepository renterRepository;
+    private final PaymentTransactionRepository transactionRepository;
+    private final BookingRepository bookingRepository;
+    private final PolicyRepository policyRepository;
+    private final PolicyService policyService;
+    private final PaymentTransactionMapper paymentTransactionMapper;
+
+    @Override
+    public List<Wallet> getAllWallets() {
+        return walletRepository.findAll();
+    }
+
+    @Override
+    public Wallet getWalletById(Long id) {
+        return walletRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví #" + id));
+    }
 
     @Override
     @Transactional
-    public Wallet refundDepositFromPriceList(Long renterId) {
-        // 1️⃣ Tìm PriceList có type = DEPOSIT
-        PriceList depositPrice = priceListRepository.findByPriceType(PriceList.PriceType.DEPOSIT)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy cấu hình tiền cọc trong PriceList"));
+    public Wallet createWallet(Long renterId) {
+        Renter renter = renterRepository.findById(renterId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy renter #" + renterId));
 
-        BigDecimal depositAmount = BigDecimal.valueOf(depositPrice.getUnitPrice());
-        if (depositAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("Giá trị cọc không hợp lệ");
+        if (walletRepository.findByRenter(renter).isPresent()) {
+            throw new RuntimeException("Renter này đã có ví!");
         }
 
-        // 2️⃣ Tìm ví của renter
-        Wallet wallet = walletRepository.findByRenter_RenterId(renterId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví cho renterId: " + renterId));
-
-        if (wallet.getStatus() == Wallet.Status.INACTIVE) {
-            throw new RuntimeException("Ví chưa được kích hoạt");
-        }
-
-        // 3️⃣ Cộng tiền hoàn cọc vào ví
-        BigDecimal newBalance = wallet.getBalance().add(depositAmount);
-        wallet.setBalance(newBalance);
-        wallet.setUpdatedAt(LocalDateTime.now());
-
-        // 4️⃣ Ghi log PaymentTransaction
-        PaymentTransaction transaction = PaymentTransaction.builder()
-                .wallet(wallet)
-                .amount(depositAmount)
-                .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
-                .status(PaymentTransaction.Status.SUCCESS)
-                .transactionTime(LocalDateTime.now())
+        Wallet wallet = Wallet.builder()
+                .renter(renter)
+                .balance(BigDecimal.ZERO)
+                .status(Wallet.Status.INACTIVE)
                 .build();
 
-        paymentTransactionRepository.save(transaction);
+        return walletRepository.save(wallet);
+    }
+
+    @Override
+    @Transactional
+    public Wallet updateBalance(Long id, BigDecimal amount, String action) {
+        Wallet wallet = getWalletById(id);
+
+        if (wallet.getStatus() == Wallet.Status.INACTIVE) {
+            throw new RuntimeException("Ví đang bị vô hiệu hóa, không thể thao tác.");
+        }
+
+        PaymentTransaction transaction = new PaymentTransaction();
+        transaction.setWallet(wallet);
+        transaction.setTransactionTime(LocalDateTime.now());
+        transaction.setAmount(amount);
+
+        switch (action.toLowerCase()) {
+            case "deposit":
+                wallet.setBalance(wallet.getBalance().add(amount));
+                transaction.setTransactionType(PaymentTransaction.TransactionType.WALLET_TOPUP);
+                transaction.setStatus(PaymentTransaction.Status.SUCCESS);
+                break;
+
+            case "withdraw":
+                if (wallet.getBalance().compareTo(amount) < 0) {
+                    transaction.setStatus(PaymentTransaction.Status.FAILED);
+                    transaction.setTransactionType(PaymentTransaction.TransactionType.WALLET_WITHDRAW);
+                    transactionRepository.save(transaction);
+                    throw new RuntimeException("Số dư không đủ để rút.");
+                }
+                wallet.setBalance(wallet.getBalance().subtract(amount));
+                transaction.setTransactionType(PaymentTransaction.TransactionType.WALLET_WITHDRAW);
+                transaction.setStatus(PaymentTransaction.Status.SUCCESS);
+                break;
+
+            default:
+                throw new RuntimeException("Hành động không hợp lệ (chỉ 'deposit' hoặc 'withdraw').");
+        }
+
+        transactionRepository.save(transaction);
+        return walletRepository.save(wallet);
+    }
+
+    @Override
+    @Transactional
+    public Wallet activateWallet(Long id) {
+        Wallet wallet = getWalletById(id);
+        wallet.setStatus(Wallet.Status.ACTIVE);
+        return walletRepository.save(wallet);
+    }
+
+    @Override
+    @Transactional
+    public Wallet deactivateWallet(Long id) {
+        Wallet wallet = getWalletById(id);
+        wallet.setStatus(Wallet.Status.INACTIVE);
+        return walletRepository.save(wallet);
+    }
+
+    @Override
+    @Transactional
+    public Wallet restoreWallet(Long id) {
+        Wallet wallet = getWalletById(id);
+        wallet.setStatus(Wallet.Status.ACTIVE);
+        return walletRepository.save(wallet);
+    }
+
+    @Override
+    public List<PaymentTransactionResponseDto> getTransactionsByWalletId(Long walletId) {
+        return transactionRepository.findByWallet_WalletId(walletId)
+                .stream()
+                .map(paymentTransactionMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public Wallet refundDepositWhenAdminCancels(Long bookingId) {
+        // 🔹 Lấy booking
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
+
+        // ✅ LOGIC MỚI 1: Kiểm tra trạng thái cọc
+        if (booking.getDepositStatus() == Booking.DepositStatus.REFUNDED) {
+            throw new RuntimeException("Booking #" + bookingId + " đã được hoàn cọc trước đó. Không thể thực hiện lại.");
+        }
+
+        // (Bạn nên kiểm tra cả trạng thái PAID, nhưng theo yêu cầu chỉ cần chặn REFUNDED)
+        // if (booking.getDepositStatus() != Booking.DepositStatus.PAID) {
+        //     throw new RuntimeException("Booking #" + bookingId + " không ở trạng thái PAID, không thể hoàn cọc.");
+        // }
+
+        Renter renter = booking.getRenter();
+        Wallet wallet = walletRepository.findByRenter(renter)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của renter #" + renter.getRenterId()));
+
+        if (wallet.getStatus() == Wallet.Status.INACTIVE) {
+            throw new RuntimeException("Ví đang bị vô hiệu hóa, không thể hoàn tiền.");
+        }
+
+        // 🔹 Lấy chính sách doanh nghiệp
+        Policy policy = policyRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách doanh nghiệp"));
+
+        double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_ADMIN);
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
+
+
+        BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
+
+        // 🔹 Cập nhật ví
+        wallet.setBalance(wallet.getBalance().add(refundAmount));
+
+        // 🔹 Ghi nhận giao dịch hoàn tiền
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .wallet(wallet)
+                .amount(refundAmount)
+                .transactionTime(LocalDateTime.now())
+                .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .build();
+
+        transactionRepository.save(transaction);
         walletRepository.save(wallet);
+
+        // ✅ LOGIC MỚI 2: Cập nhật trạng thái Booking
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking); // Lưu thay đổi của booking
 
         return wallet;
     }
+
+    @Override
+    @Transactional
+    public Wallet refundDepositWhenRenterCancels(Long bookingId) {
+        // 🔹 Lấy booking
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + bookingId));
+
+        // ✅ LOGIC MỚI 1: Kiểm tra trạng thái cọc
+        if (booking.getDepositStatus() == Booking.DepositStatus.REFUNDED) {
+            throw new RuntimeException("Booking #" + bookingId + " đã được hoàn cọc trước đó. Không thể thực hiện lại.");
+        }
+
+        Renter renter = booking.getRenter();
+        Wallet wallet = walletRepository.findByRenter(renter)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của renter #" + renter.getRenterId()));
+
+        if (wallet.getStatus() == Wallet.Status.INACTIVE) {
+            throw new RuntimeException("Ví đang bị vô hiệu hóa, không thể hoàn tiền.");
+        }
+
+        // 🔹 Lấy policy hiện tại
+        Policy policy = policyRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách doanh nghiệp"));
+
+        double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
+
+        // ✅ Lấy tiền cọc hiện tại
+        double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
+
+        BigDecimal refundAmount = BigDecimal.valueOf(depositAmount * (refundPercent / 100));
+
+        // 🔹 Cập nhật ví
+        wallet.setBalance(wallet.getBalance().add(refundAmount));
+
+        // 🔹 Ghi nhận giao dịch hoàn tiền
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .wallet(wallet)
+                .amount(refundAmount)
+                .transactionTime(LocalDateTime.now())
+                .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .build();
+
+        transactionRepository.save(transaction);
+        walletRepository.save(wallet);
+
+        // ✅ LOGIC MỚI 2: Cập nhật trạng thái Booking
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking); // Lưu thay đổi của booking
+
+        return wallet;
+    }
+
+
+
 }

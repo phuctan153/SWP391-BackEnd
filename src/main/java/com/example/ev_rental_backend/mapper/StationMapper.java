@@ -24,6 +24,8 @@ public interface StationMapper {
     VehicleResponseDTO toVehicleDto(Vehicle vehicle);
 
 
+
+
     @Mapping(target = "stationId", ignore = true)
     @Mapping(target = "vehicles", ignore = true)
     @Mapping(target = "staffStations", ignore = true)
@@ -87,4 +89,15 @@ public interface StationMapper {
                         .build())
                 .collect(Collectors.toList());
     }
+
+    // ✅ Map entity → StationResponseDTO (dùng cho update hoặc get)
+//    @Mapping(target = "carNumber", source = "car_number")
+//    @Mapping(target = "status", expression = "java(station.getStatus() != null ? station.getStatus().toString() : null)")
+//    @Mapping(target = "currentVehicleCount", expression = "java(calculateCurrentVehicleCount(station))")
+//    @Mapping(target = "availableVehicleCount", expression = "java(calculateAvailableVehicleCount(station))")
+//    @Mapping(target = "vehicles", expression = "java(mapVehicles(station))")
+//    StationResponseDTO toStationResponseDTO(Station station);
+
+
+
 }

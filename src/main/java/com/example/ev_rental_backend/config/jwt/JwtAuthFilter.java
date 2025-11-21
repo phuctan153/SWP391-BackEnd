@@ -38,14 +38,21 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String token = authHeader.substring(7);
 
+        // ✅ Kiểm tra hợp lệ của token
         if (jwtTokenUtil.isTokenValid(token)) {
             String email = jwtTokenUtil.extractEmail(token);
             String role = jwtTokenUtil.extractRole(token); // ✅ Đọc role từ JWT
 
+            // ✅ Thêm prefix ROLE_ nếu chưa có
+            if (!role.startsWith("ROLE_")) {
+                role = "ROLE_" + role;
+            }
+
+            // ✅ Gán token vào credentials thay vì null
             UsernamePasswordAuthenticationToken authToken =
                     new UsernamePasswordAuthenticationToken(
                             email,
-                            null,
+                            token, // ⚠️ Token sẽ được lưu ở đây, cho phép bạn gọi auth.getCredentials()
                             Collections.singletonList(new SimpleGrantedAuthority(role))
                     );
 

@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8"/>
-    <title>Hợp đồng thuê xe điện</title>
+    <title>Hợp đồng thuê xe điện - EV Rental</title>
     <style>
         body {
             font-family: "DejaVu Sans", sans-serif;
@@ -14,7 +14,15 @@
         h1 {
             text-align: center;
             font-size: 22px;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+        }
+
+        .company-name {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            color: #008000;
+            margin-bottom: 20px;
         }
 
         h2 {
@@ -54,11 +62,33 @@
 
         .sign {
             margin-top: 40px;
-            text-align: right;
+            margin-bottom: 40px;
+            overflow: hidden;
         }
+
+        .left-sign, .right-sign {
+            width: 45%;
+            text-align: center;
+        }
+
+        .left-sign { float: left; }
+        .right-sign { float: right; }
 
         .sign p {
             margin: 5px 0;
+            font-weight: bold;
+        }
+
+        .sign .left-sign p,
+        .sign .right-sign p {
+            border-top: 1px solid #aaa;
+            padding-top: 10px;
+            margin-top: 40px;
+        }
+
+        .tick {
+            color: green;
+            font-size: 22px;
         }
 
         .footer {
@@ -72,33 +102,43 @@
 <body>
 
 <h1>HỢP ĐỒNG THUÊ XE ĐIỆN</h1>
+<div class="company-name">Công ty ${companyName}</div>
 
 <div class="info">
-    <p><b>Ngày lập hợp đồng:</b> ${contractDate}</p>
-    <p><b>Người thuê:</b> ${renterName}</p>
-    <p><b>Email:</b> ${renterEmail}</p>
-    <p><b>Số điện thoại:</b> ${renterPhone}</p>
-    <p><b>Nhân viên phụ trách:</b> ${staffName}</p>
-    <p><b>Tên xe:</b> ${vehicleName}</p>
-    <p><b>Biển số xe:</b> ${vehiclePlate}</p>
-    <p><b>Thời gian thuê:</b> ${startDate} → ${endDate}</p>
-    <p><b>Giá thuê:</b> ${pricePerHour} VNĐ/giờ</p>
+    <p><b>Ngày lập hợp đồng:</b> ${contractDate?html}</p>
+    <p><b>Người thuê:</b> ${renterName?html}</p>
+    <p><b>Email:</b> ${renterEmail?html}</p>
+    <p><b>Số điện thoại:</b> ${renterPhone?html}</p>
+    <p><b>Nhân viên tạo hợp đồng:</b> ${staffCreatorName?html}</p>
+    <p><b>Nhân viên bàn giao xe:</b> ${staffReceiveName?html}</p>
+    <p><b>Nhân viên nhận xe khi trả:</b> ${staffReturnName?html}</p>
+    <p><b>Tên xe:</b> ${vehicleName?html}</p>
+    <p><b>Biển số xe:</b> ${vehiclePlate?html}</p>
+    <p><b>Thời gian thuê:</b>
+        ${startDate?string("dd/MM/yyyy HH:mm")} → ${endDate?string("dd/MM/yyyy HH:mm")}
+    </p>
 
-    <#-- ✅ Hiển thị admin nếu có -->
+    <p><b>Giá thuê:</b> ${pricePerDay?string(",##0")} VNĐ/ngày</p>
+    <p><b>Phụ thu nếu trả trễ:</b>
+        Nếu trả trễ &lt; ${rentalTimeThresholdHours} tiếng:
+        <b>${pricePerHour?string(",##0")} VNĐ/giờ</b>.<br/>
+        Nếu trễ ≥ ${rentalTimeThresholdHours} tiếng:
+        <b>${pricePerDay?string(",##0")} VNĐ/ngày</b>.
+    </p>
+
     <#if adminName?has_content>
-    <p><b>Quản trị viên phê duyệt:</b> ${adminName}</p>
+    <p><b>Quản trị viên phê duyệt:</b> ${adminName?html}</p>
 </#if>
 </div>
 
 <hr/>
 
 <h2>ĐIỀU KHOẢN HỢP ĐỒNG</h2>
-
 <div class="terms">
     <#list terms as term>
     <div class="term">
-        <div class="term-title">${term.termTitle}</div>
-        <div class="term-content">${term.termContent}</div>
+        <div class="term-title">${term.termTitle?html}</div>
+        <div class="term-content">${term.termContent?html}</div>
     </div>
 </#list>
 </div>
@@ -106,25 +146,31 @@
 <hr/>
 
 <div class="sign">
-    <p><b>Người thuê:</b>
-        <#if contractStatus == "FULLY_SIGNED">
-        ✅ ĐÃ KÝ
-        <#elseif contractStatus == "ADMIN_SIGNED">
-        ⏳ CHỜ NGƯỜI THUÊ KÝ
-        <#else>
-        __________________________
-    </#if>
-    </p>
+    <div class="left-sign">
+        <p><b>Người thuê:</b><br/>
+            <#if contractStatus == "FULLY_SIGNED">
+            <span class="tick"><img src="https://img.icons8.com/emoji/20/000000/check-mark-emoji.png" width="18" height="18" alt="tick"/></span> ĐÃ KÝ<br/>
+            <small>(Ngày ký: ${renterSignedAt})</small>
+            <#elseif contractStatus == "ADMIN_SIGNED">
+            ⏳ CHỜ NGƯỜI THUÊ KÝ
+            <#else>
+            __________________________
+        </#if>
+        </p>
+    </div>
 
-    <p><b>Quản trị viên phê duyệt:</b>
-        <#if contractStatus == "ADMIN_SIGNED" || contractStatus == "FULLY_SIGNED">
-        ✅ ĐÃ PHÊ DUYỆT
-        <#elseif contractStatus == "PENDING_ADMIN_SIGNATURE">
-        ⏳ CHỜ PHÊ DUYỆT
-        <#else>
-        __________________________
-    </#if>
-    </p>
+    <div class="right-sign">
+        <p><b>Quản trị viên phê duyệt:</b><br/>
+            <#if contractStatus == "ADMIN_SIGNED" || contractStatus == "FULLY_SIGNED">
+            <span class="tick"><img src="https://img.icons8.com/emoji/20/000000/check-mark-emoji.png" width="18" height="18" alt="tick"/></span> ĐÃ PHÊ DUYỆT<br/>
+            <small>(Ngày ký: ${adminSignedAt})</small>
+            <#elseif contractStatus == "PENDING_ADMIN_SIGNATURE">
+            ⏳ CHỜ PHÊ DUYỆT
+            <#else>
+            __________________________
+        </#if>
+        </p>
+    </div>
 </div>
 
 <div class="footer">

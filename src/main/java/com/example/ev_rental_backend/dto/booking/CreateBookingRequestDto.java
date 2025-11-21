@@ -14,14 +14,15 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class CreateBookingRequestDto {
-    @NotNull(message = "Vehicle ID is required")
+
+    @NotNull(message = "Vui lòng chọn xe cần thuê")
     private Long vehicleId;
 
-    @NotNull(message = "Start date time is required")
-    @Future(message = "Start date time must be in the future")
+    @NotNull(message = "Vui lòng chọn thời gian bắt đầu thuê")
+    @Future(message = "Thời gian bắt đầu phải nằm trong tương lai")
     private LocalDateTime startDateTime;
 
-    @NotNull(message = "End date time is required")
-    @Future(message = "End date time must be in the future")
+    @NotNull(message = "Vui lòng chọn thời gian kết thúc thuê")
+    @Future(message = "Thời gian kết thúc phải nằm trong tương lai")
     private LocalDateTime endDateTime;
 }

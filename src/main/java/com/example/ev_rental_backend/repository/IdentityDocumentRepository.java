@@ -1,6 +1,7 @@
 package com.example.ev_rental_backend.repository;
 
 import com.example.ev_rental_backend.entity.IdentityDocument;
+import com.example.ev_rental_backend.entity.Renter;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -19,6 +20,9 @@ public interface IdentityDocumentRepository extends JpaRepository<IdentityDocume
     // 🔹 Tìm giấy tờ cụ thể theo số và loại
     Optional<IdentityDocument> findByDocumentNumberAndType(String documentNumber, IdentityDocument.DocumentType type);
 
-    // 🔹 Tìm các giấy tờ đang chờ duyệt
+    // 🔹 Tìm tất cả giấy tờ của một renter (theo object)
+    List<IdentityDocument> findByRenter(Renter renter);
+
     List<IdentityDocument> findByStatus(IdentityDocument.DocumentStatus status);
+
 }

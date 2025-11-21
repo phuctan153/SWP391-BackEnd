@@ -1,8 +1,10 @@
 package com.example.ev_rental_backend.service.contract;
 
 import com.example.ev_rental_backend.entity.Contract;
+import com.example.ev_rental_backend.entity.Policy;
 import com.example.ev_rental_backend.entity.TermCondition;
 import com.example.ev_rental_backend.repository.TermConditionRepository;
+import com.example.ev_rental_backend.service.policy.PolicyService;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,8 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -25,14 +29,23 @@ import java.util.*;
 public class PdfGeneratorService {
 
     private final Configuration freemarkerConfig;
+    private final PolicyService policyService;
     private final TermConditionRepository termConditionRepository;
 
     public String generateContractFile(Contract contract) {
         try {
-            // 🧾 Chuẩn bị dữ liệu cho template
+            // 🧾 1️⃣ Chuẩn bị dữ liệu cho FreeMarker template
             Map<String, Object> data = new HashMap<>();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-            data.put("contractDate", contract.getContractDate().format(formatter));
+
+            // Thông tin cơ bản của hợp đồng
+            data.put("companyName", "EV Rental");
+            data.put("contractDate", contract.getContractDate() != null
+                    ? contract.getContractDate().format(formatter)
+                    : LocalDateTime.now().format(formatter));
+            data.put("contractStatus", contract.getStatus().name());
+
+            // --- Người thuê ---
             var renter = contract.getBooking().getRenter();
             String renterFullName = renter.getIdentityDocuments().stream()
                     .filter(doc -> doc.getStatus() == com.example.ev_rental_backend.entity.IdentityDocument.DocumentStatus.VERIFIED)
@@ -40,52 +53,84 @@ public class PdfGeneratorService {
                             || doc.getType() == com.example.ev_rental_backend.entity.IdentityDocument.DocumentType.DRIVER_LICENSE)
                     .map(com.example.ev_rental_backend.entity.IdentityDocument::getFullName)
                     .findFirst()
-                    .orElse(renter.getFullName()); // fallback nếu chưa xác minh
-
+                    .orElse(renter.getFullName());
+            double thresholdHours = policyService.getPolicyValue(Policy.PolicyType.RENTAL_TIME_THRESHOLD_HOURS);
+            data.put("rentalTimeThresholdHours", (int) thresholdHours);
             data.put("renterName", renterFullName);
-            data.put("renterEmail", contract.getBooking().getRenter().getEmail());
-            data.put("renterPhone", contract.getBooking().getRenter().getPhoneNumber());
-            data.put("staffName", contract.getBooking().getStaff().getFullName());
+            data.put("renterEmail", renter.getEmail());
+            data.put("renterPhone", renter.getPhoneNumber());
+
+            // --- Nhân viên & Xe ---
+            data.put("staffCreatorName",
+                    contract.getCreatedByStaff() != null
+                            ? contract.getCreatedByStaff().getFullName()
+                            : "Chưa xác định");
+
+            data.put("staffReceiveName",
+                    contract.getBooking().getStaffReceive() != null
+                            ? contract.getBooking().getStaffReceive().getFullName()
+                            : "Chưa phân công");
+
+            data.put("staffReturnName",
+                    contract.getBooking().getStaffReturn() != null
+                            ? contract.getBooking().getStaffReturn().getFullName()
+                            : "Chưa phân công");
             data.put("vehicleName", contract.getBooking().getVehicle().getVehicleName());
             data.put("vehiclePlate", contract.getBooking().getVehicle().getPlateNumber());
-            data.put("startDate", contract.getBooking().getStartDateTime());
-            data.put("endDate", contract.getBooking().getEndDateTime());
+
+            // --- Thời gian thuê ---
+            data.put("startDate", contract.getBooking().getStartDateTime() != null
+                    ? Date.from(contract.getBooking().getStartDateTime().atZone(ZoneId.systemDefault()).toInstant())
+                    : null);
+
+            data.put("endDate", contract.getBooking().getEndDateTime() != null
+                    ? Date.from(contract.getBooking().getEndDateTime().atZone(ZoneId.systemDefault()).toInstant())
+                    : null);
+
+            // --- Giá ---
             data.put("pricePerHour", contract.getBooking().getPriceSnapshotPerHour());
             data.put("pricePerDay", contract.getBooking().getPriceSnapshotPerDay());
-            data.put("contractStatus", contract.getStatus().name());
-            data.put("adminName",
-                    (contract.getAdmin() != null) ? contract.getAdmin().getFullName() : "");
 
+            // --- Admin ---
+            data.put("adminName", (contract.getAdmin() != null) ? contract.getAdmin().getFullName() : "");
+            data.put("adminSignedAt", (contract.getAdminSignedAt() != null)
+                    ? contract.getAdminSignedAt().format(formatter)
+                    : "");
+            data.put("renterSignedAt", (contract.getRenterSignedAt() != null)
+                    ? contract.getRenterSignedAt().format(formatter)
+                    : "");
 
+            // --- Điều khoản ---
             List<TermCondition> terms = contract.getTerms();
             if (terms == null || terms.isEmpty()) {
                 terms = termConditionRepository.findByContract(contract);
             }
             data.put("terms", terms != null ? terms : new ArrayList<>());
 
-            // 📄 Load template từ resources/templates
+            // 🧩 2️⃣ Load FreeMarker template
             Template template = freemarkerConfig.getTemplate("contract_template.html");
 
-            // 🧩 Render dữ liệu sang HTML
+            // 3️⃣ Render dữ liệu sang HTML
             StringWriter writer = new StringWriter();
             template.process(data, writer);
             String htmlContent = writer.toString();
 
-            // 📁 Tạo thư mục output nếu chưa có
+            // 📁 4️⃣ Tạo thư mục lưu nếu chưa tồn tại
             Path outputPath = Paths.get("uploads/contracts/");
             Files.createDirectories(outputPath);
 
+            // 📄 5️⃣ Tạo file PDF
             String fileName = "contract_" + contract.getContractId() + ".pdf";
             Path pdfFile = outputPath.resolve(fileName);
 
-            // 🖨️ Render PDF với font hỗ trợ Unicode tiếng Việt
             try (OutputStream os = new FileOutputStream(pdfFile.toFile())) {
                 ITextRenderer renderer = new ITextRenderer();
 
-                // ✅ Thêm font Unicode (Roboto hoặc Arial Unicode MS)
+                // ✅ Thêm font Unicode hỗ trợ tiếng Việt
                 String fontPath = "src/main/resources/fonts/DejaVuSans.ttf";
                 renderer.getFontResolver().addFont(fontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
 
+                // ✅ Render PDF
                 String baseUrl = new File("uploads/contracts/").toURI().toURL().toString();
                 renderer.setDocumentFromString(htmlContent, baseUrl);
                 renderer.layout();
@@ -93,11 +138,12 @@ public class PdfGeneratorService {
                 renderer.finishPDF();
             }
 
-            // 🌐 Trả về URL để frontend truy cập file
+            // 🌐 6️⃣ Trả về URL truy cập (mapping qua /files/contracts/**)
             return "http://localhost:8080/files/contracts/" + fileName;
 
         } catch (Exception e) {
             throw new RuntimeException("Lỗi render hợp đồng: " + e.getMessage(), e);
         }
     }
+
 }

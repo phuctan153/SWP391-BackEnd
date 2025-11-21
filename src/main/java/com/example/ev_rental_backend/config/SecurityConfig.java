@@ -5,8 +5,12 @@ import com.example.ev_rental_backend.service.CustomOAuth2UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -16,6 +20,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
+@EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -23,71 +29,105 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
 
     @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ Cho phép CORS và tắt CSRF
+                // ✅ Bật CORS và tắt CSRF
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // ✅ Không kích hoạt login mặc định (form hoặc oauth)
+                // ✅ Tắt form login và HTTP Basic
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
 
-                // ✅ Quyền truy cập
+                // ✅ Phân quyền truy cập chi tiết
                 .authorizeHttpRequests(auth -> auth
+                        // Public API (cho phép truy cập tự do)
                         .requestMatchers(
-                                "/api/auth/**",      // đăng ký / login
-                                "/api/stations/**",  // public cho bản đồ
+                                "/api/auth/**",
+                                "/api/stations/**",
                                 "/api/momo/**",
                                 "/api/vehicle/**",
+                                "/api/vehicles/**",
+                                "/api/policies/{id}",
+                                "/api/policies/active/{type}",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/v3/api-docs.yaml",
                                 "/v3/api-docs/swagger-config",
                                 "/error",
-                                "/api/vehicles/**",// tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/bookings/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/vehicle-models/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/payments/**", // tạm thời public để test xe (sẽ đổi lại sau)
-                                "/api/invoices/**"
+                                "/api/payments/payos/webhook"
                         ).permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
-                        .requestMatchers("/api/staff/**").hasAnyAuthority("STAFF", "ADMIN")
-                        .requestMatchers("/api/renter/**").hasAuthority("RENTER")
+
+                        // 🚫 Chặn public access trực tiếp file hợp đồng
+                        .requestMatchers("/files/contracts/**").denyAll()
+
+                        // ✅ API xem hợp đồng có JWT
+                        .requestMatchers("/api/renter/contracts/view/**").authenticated()
+
+                        // Role-based access
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
+                        .requestMatchers("/api/contracts/view/**").hasAnyRole("ADMIN", "STAFF", "RENTER")
+
+                        .requestMatchers("/api/renter/**").hasRole("RENTER")
+
+                        // Các request khác đều cần đăng nhập
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Chỉ bật OAuth2 khi user chủ động login Google
+                // ✅ Cấu hình OAuth2 login (Google)
                 .oauth2Login(oauth -> oauth
-                        .loginPage("/api/auth/google") // custom login URL
+                        .loginPage("/api/auth/google")
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                        .defaultSuccessUrl("http://localhost:3000/homepage", true)
+                        .defaultSuccessUrl("https://swp-391-frontend-mu.vercel.app/homepage", true)
                 )
 
-                // ✅ JWT Filter
+                // ✅ Thêm JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // ✅ Stateless session
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // ✅ Logout
+                // ✅ Logout redirect
                 .logout(logout -> logout
-                        .logoutSuccessUrl("http://localhost:3000/login")
+                        .logoutSuccessUrl("https://swp-391-frontend-mu.vercel.app/login")
                         .permitAll()
                 );
 
         return http.build();
     }
 
-    // ✅ CORS cấu hình
+    // ✅ Cấu hình CORS CHUẨN CHO FRONTEND
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        // ⚡ Cho phép các domain frontend
+        configuration.setAllowedOrigins(List.of(
+                "https://swp-391-frontend-mu.vercel.app",
+                "http://localhost:3000",
+                "http://localhost:8080"
+        ));
+        configuration.addAllowedOriginPattern("https://*.ngrok-free.dev");
+        // ⚡ Cho phép các method cơ bản
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
+        // ⚡ Cho phép các header cần thiết
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+
+        // ⚡ Cho phép frontend đọc các header này từ response
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
+
+        // ⚡ Cho phép gửi cookie hoặc JWT token
         configuration.setAllowCredentials(true);
+
+        // ⚡ Cache cấu hình CORS trong 1 giờ
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

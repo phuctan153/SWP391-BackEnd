@@ -1,11 +1,13 @@
 package com.example.ev_rental_backend.dto.booking;
 import com.example.ev_rental_backend.entity.Booking;
+import com.example.ev_rental_backend.entity.BookingImage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -18,8 +20,12 @@ public class BookingResponseDto {
     private String renterName;
     private Long vehicleId;
     private String vehicleName;
-    private Long staffId;
-    private String staffName;
+
+    private Long staffReceiveId;
+    private String staffReceiveName;
+
+    private Long staffReturnId;
+    private String staffReturnName;
 
     private Double priceSnapshotPerHour;
     private Double priceSnapshotPerDay;
@@ -35,4 +41,19 @@ public class BookingResponseDto {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private List<BookingImageDto> bookingImages;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class BookingImageDto {
+        private Long imageId;
+        private String imageUrl;
+        private String description;
+        private LocalDateTime createdAt;
+        private BookingImage.ImageType imageType;
+        private BookingImage.VehicleComponent vehicleComponent;
+    }
 }

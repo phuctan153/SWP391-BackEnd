@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.vehicle.VehicleDTO;
+import com.example.ev_rental_backend.dto.vehicle.VehicleDetailResponseDTO;
 import com.example.ev_rental_backend.service.vehicle.VehicleImageService;
 import com.example.ev_rental_backend.service.vehicle.VehicleService;
 import jakarta.validation.Valid;
@@ -10,9 +11,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin/vehicles")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
+@CrossOrigin(origins = "https://swp-391-frontend-mu.vercel.app", allowCredentials = "true")
 @RequiredArgsConstructor
 public class VehicleAdminController {
     private final VehicleService vehicleService;
@@ -36,6 +39,35 @@ public class VehicleAdminController {
                         .status("success")
                         .code(200)
                         .data(vehicleService.updateVehicle(id, dto))
+                        .build()
+        );
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<List<VehicleDTO>>> getAllVehicles() {
+        // Giả sử vehicleService.getAllVehicles() tồn tại và trả về List<VehicleDTO>
+        List<VehicleDTO> vehicles = vehicleService.getAllVehicles();
+
+        return ResponseEntity.ok(
+                ApiResponse.<List<VehicleDTO>>builder()
+                        .status("success")
+                        .code(200)
+                        .data(vehicles)
+                        .message("Lấy tất cả phương tiện thành công")
+                        .build()
+        );
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<VehicleDetailResponseDTO>> getVehicleById(@PathVariable Long id) {
+        VehicleDetailResponseDTO vehicle = vehicleService.getVehicleDetail(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<VehicleDetailResponseDTO>builder()
+                        .status("success")
+                        .code(200)
+                        .data(vehicle)
+                        .message("Lấy thông tin xe thành công")
                         .build()
         );
     }

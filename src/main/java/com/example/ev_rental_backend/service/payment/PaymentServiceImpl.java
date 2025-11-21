@@ -1,6 +1,11 @@
 package com.example.ev_rental_backend.service.payment;
 
 import com.example.ev_rental_backend.dto.payment.*;
+import com.example.ev_rental_backend.dto.payos.PayOSPaymentInfoDto;
+import com.example.ev_rental_backend.dto.payos.PayOSWebhookData;
+import com.example.ev_rental_backend.dto.payos.PayOSWebhookRequest;
+import com.example.ev_rental_backend.dto.payos.PayOSWebhookResponse;
+import com.example.ev_rental_backend.dto.refund.RefundRequestDTO;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
@@ -13,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,10 +31,149 @@ public class PaymentServiceImpl implements PaymentService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final WalletRepository walletRepository;
-    private final RenterRepository renterRepository;
+    private final PolicyRepository policyRepository;
     private final MomoPaymentService momoPaymentService;
     private final BookingRepository bookingRepository;
     private final NotificationService notificationService;
+    private final PayOSPaymentService payosPaymentService;
+
+
+    @Override
+    @Transactional
+    public PaymentResponseDto refundDepositByCash(Long finalInvoiceId, RefundRequestDTO requestDto) {
+
+        // 1️⃣ Lấy FINAL invoice
+        Invoice finalInvoice = invoiceRepository.findById(finalInvoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + finalInvoiceId));
+
+        if (finalInvoice.getType() != Invoice.Type.FINAL) {
+            throw new CustomException("Chỉ thực hiện hoàn cọc thông qua hóa đơn FINAL.");
+        }
+
+        if (finalInvoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Hóa đơn này đã được thanh toán – không thể hoàn tiền thêm.");
+        }
+
+        Booking booking = finalInvoice.getBooking();
+
+        // 2️⃣ Tìm DEPOSIT invoice của cùng booking
+        Invoice depositInvoice = booking.getInvoices().stream()
+                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
+                .findFirst()
+                .orElseThrow(() ->
+                        new CustomException("Không tìm thấy hóa đơn đặt cọc đã thanh toán cho booking #" + booking.getBookingId())
+                );
+
+        // 3️⃣ Lấy số tiền cần hoàn
+        double refundAmount = requestDto.getAmount();
+
+        // 4️⃣ Cập nhật FINAL invoice
+        finalInvoice.setRefundAmount(refundAmount);
+        finalInvoice.setNotes("Hoàn tiền mặt: " +
+                (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
+
+        finalInvoice.setStatus(Invoice.Status.PAID);
+        invoiceRepository.save(finalInvoice);
+
+        // 5️⃣ Tạo transaction hoàn tiền mặt
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .invoice(finalInvoice)
+                .amount(BigDecimal.valueOf(refundAmount))
+                .transactionType(PaymentTransaction.TransactionType.REFUND_CASH)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .notes("Hoàn tiền mặt phần dư đặt cọc cho booking #" + booking.getBookingId())
+                .transactionTime(LocalDateTime.now())
+                .build();
+        paymentTransactionRepository.save(transaction);
+
+        // 6️⃣ Cập nhật trạng thái đặt cọc
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking);
+
+        // 7️⃣ Trả về response
+        return PaymentResponseDto.builder()
+                .transactionId(transaction.getTransactionId())
+                .invoiceId(finalInvoice.getInvoiceId())
+                .amount(transaction.getAmount())
+                .status(transaction.getStatus())
+                .transactionType(transaction.getTransactionType())
+                .transactionTime(transaction.getTransactionTime())
+                .message("Hoàn tiền mặt thành công.")
+                .build();
+    }
+
+
+    @Override
+    @Transactional
+    public PaymentResponseDto refundDepositToWallet(Long finalInvoiceId, RefundRequestDTO requestDto) {
+
+        // 1️⃣ Lấy FINAL invoice
+        Invoice finalInvoice = invoiceRepository.findById(finalInvoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy FINAL invoice #" + finalInvoiceId));
+
+        if (finalInvoice.getType() != Invoice.Type.FINAL) {
+            throw new CustomException("Chỉ được hoàn cọc thông qua hóa đơn cuối (FINAL).");
+        }
+
+        if (finalInvoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Hóa đơn này đã được thanh toán – không thể hoàn tiền thêm.");
+        }
+
+        Booking booking = finalInvoice.getBooking();
+
+        // 2️⃣ Tìm invoice DEPOSIT của cùng booking
+        Invoice depositInvoice = booking.getInvoices().stream()
+                .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
+                .findFirst()
+                .orElseThrow(() ->
+                        new CustomException("Không tìm thấy hóa đơn đặt cọc đã thanh toán cho booking #" + booking.getBookingId())
+                );
+
+        // 3️⃣ Lấy ví của renter
+        Wallet wallet = walletRepository.findByRenter(booking.getRenter())
+                .orElseThrow(() -> new CustomException("Không tìm thấy ví của người thuê."));
+
+        BigDecimal refundAmount = BigDecimal.valueOf(requestDto.getAmount());
+
+        // 4️⃣ Cộng tiền vào ví
+        wallet.setBalance(wallet.getBalance().add(refundAmount));
+        walletRepository.save(wallet);
+
+        // 5️⃣ Cập nhật FINAL invoice (không phải DEPOSIT)
+        finalInvoice.setRefundAmount(refundAmount.doubleValue());
+        finalInvoice.setNotes("Hoàn tiền ví: " +
+                (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
+        finalInvoice.setStatus(Invoice.Status.PAID);
+        invoiceRepository.save(finalInvoice);
+
+        // 6️⃣ Tạo transaction gắn với FINAL invoice
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .invoice(finalInvoice)
+                .wallet(wallet)
+                .amount(refundAmount)
+                .transactionType(PaymentTransaction.TransactionType.WALLET_REFUND_DEPOSIT)
+                .status(PaymentTransaction.Status.SUCCESS)
+                .notes("Hoàn tiền đặt cọc vào ví cho booking #" + booking.getBookingId())
+                .transactionTime(LocalDateTime.now())
+                .build();
+        paymentTransactionRepository.save(transaction);
+
+        // 7️⃣ Cập nhật trạng thái đặt cọc của booking
+        booking.setDepositStatus(Booking.DepositStatus.REFUNDED);
+        bookingRepository.save(booking);
+
+        // 8️⃣ Response
+        return PaymentResponseDto.builder()
+                .transactionId(transaction.getTransactionId())
+                .invoiceId(finalInvoice.getInvoiceId())
+                .amount(transaction.getAmount())
+                .status(transaction.getStatus())
+                .transactionType(transaction.getTransactionType())
+                .transactionTime(transaction.getTransactionTime())
+                .message("Hoàn tiền đặt cọc vào ví thành công qua hóa đơn FINAL.")
+                .build();
+    }
+
 
     /**
      * Thanh toán bằng tiền mặt (Staff xác nhận)
@@ -53,31 +200,33 @@ public class PaymentServiceImpl implements PaymentService {
     /**
      * Thanh toán bằng ví (BR-30)
      */
+    @Transactional
     public PaymentResponseDto payByWallet(Long invoiceId, PaymentRequestDto requestDto) {
+        // 1️⃣ Validate hóa đơn
         Invoice invoice = getInvoiceAndValidate(invoiceId, requestDto.getAmount());
 
-        // Lấy renter từ booking
+        // 2️⃣ Lấy renter từ booking
         Renter renter = invoice.getBooking().getRenter();
 
-        // Lấy wallet
+        // 3️⃣ Lấy ví của renter
         Wallet wallet = walletRepository.findByRenter(renter)
-                .orElseThrow(() -> new NotFoundException("Wallet not found for renter"));
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy ví của người thuê"));
 
-        // Kiểm tra ví có active không
+        // 4️⃣ Kiểm tra trạng thái ví
         if (wallet.getStatus() != Wallet.Status.ACTIVE) {
-            throw new CustomException("Wallet is not active", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Ví của bạn đang bị khóa. Vui lòng liên hệ hỗ trợ.", HttpStatus.BAD_REQUEST);
         }
 
-        // Kiểm tra số dư
+        // 5️⃣ Kiểm tra số dư
         if (wallet.getBalance().compareTo(BigDecimal.valueOf(requestDto.getAmount())) < 0) {
-            throw new CustomException("Insufficient wallet balance", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Số dư trong ví không đủ để thanh toán.", HttpStatus.BAD_REQUEST);
         }
 
-        // Trừ tiền trong ví
+        // 6️⃣ Trừ tiền trong ví
         wallet.setBalance(wallet.getBalance().subtract(BigDecimal.valueOf(requestDto.getAmount())));
         walletRepository.save(wallet);
 
-        // Tạo transaction
+        // 7️⃣ Tạo giao dịch thanh toán (Transaction)
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .invoice(invoice)
                 .wallet(wallet)
@@ -88,11 +237,18 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
 
-        // Cập nhật trạng thái invoice
+        // 8️⃣ Cập nhật phương thức thanh toán của hóa đơn
+        invoice.setPaymentMethod(Invoice.PaymentMethod.WALLET);
+        invoiceRepository.save(invoice);
+        log.info("Đã cập nhật phương thức thanh toán của hóa đơn {} thành WALLET", invoiceId);
+
+        // 9️⃣ Cập nhật trạng thái hóa đơn sau khi thanh toán
         updateInvoiceStatus(invoice, requestDto.getAmount());
 
+        // 🔟 Trả kết quả về client
         return mapToPaymentResponseDto(savedTransaction);
     }
+
 
     /**
      * Tạo payment MoMo cho invoice (BR-30)
@@ -108,7 +264,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (requestDto.getAmount() > amountRemaining) {
             throw new CustomException(
-                    String.format("Payment amount %.2f exceeds remaining amount %.2f",
+                    String.format("Số tiền thanh toán %.2f vượt quá số tiền còn lại %.2f",
                             requestDto.getAmount(), amountRemaining),
                     HttpStatus.BAD_REQUEST
             );
@@ -124,13 +280,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
 
-        log.info("Created payment transaction {} for invoice {}",
+        log.info("Đã tạo giao dịch thanh toán {} cho hóa đơn {}",
                 savedTransaction.getTransactionId(), invoiceId);
 
         // 4. Tạo payment với MoMo
         String orderInfo = String.format(
-                "Thanh toan hoa don #%d - EV Station",
-                invoiceId
+                "Thanh toán hóa đơn #%d - EV Station", invoiceId
         );
 
         MomoPaymentInfoDto momoPayment = momoPaymentService.createPayment(
@@ -139,18 +294,21 @@ public class PaymentServiceImpl implements PaymentService {
                 orderInfo
         );
 
-        // 5. Kiểm tra kết quả
+        // 5. Cập nhật phương thức thanh toán
+        invoice.setPaymentMethod(Invoice.PaymentMethod.MOMO);
+        invoiceRepository.save(invoice);
+        log.info("Đã cập nhật phương thức thanh toán của hóa đơn {} thành MOMO", invoiceId);
+
+        // 6. Kiểm tra kết quả MoMo
         if (momoPayment.getResultCode() != 0) {
-            // Tạo payment thất bại
             savedTransaction.setStatus(PaymentTransaction.Status.FAILED);
             paymentTransactionRepository.save(savedTransaction);
-
-            log.error("MoMo payment creation failed for transaction {}",
-                    savedTransaction.getTransactionId());
+            log.error("❌ Tạo giao dịch MoMo thất bại cho transaction {}", savedTransaction.getTransactionId());
         }
 
         return momoPayment;
     }
+
 
     /**
      * Xử lý IPN từ MoMo
@@ -159,7 +317,7 @@ public class PaymentServiceImpl implements PaymentService {
      * MoMo gọi về backend để thông báo kết quả thanh toán
      */
     @Transactional
-    public MomoIPNResponse handleMomoIPN(MomoIPNRequest ipnRequest) {
+    public MomoIPNResponse  handleMomoIPN(MomoIPNRequest ipnRequest) {
 
         log.info("Processing MoMo IPN - OrderId: {}, ResultCode: {}, TransId: {}",
                 ipnRequest.getOrderId(), ipnRequest.getResultCode(), ipnRequest.getTransId());
@@ -256,6 +414,236 @@ public class PaymentServiceImpl implements PaymentService {
         return mapToTransactionResponseDto(transaction);
     }
 
+    /**
+     * Thanh toán qua PayOS
+     */
+    public PayOSPaymentInfoDto createPayOSPayment(Long invoiceId, PaymentRequestDto requestDto) {
+        // 1. Validate invoice
+        Invoice invoice = getInvoiceAndValidate(invoiceId, requestDto.getAmount());
+
+        // 2. Tính số tiền còn phải trả
+        Double totalPaid = getTotalPaid(invoice);
+        Double amountRemaining = invoice.getTotalAmount() - totalPaid;
+
+        if (requestDto.getAmount() > amountRemaining) {
+            throw new CustomException(
+                    String.format("Payment amount %.2f exceeds remaining amount %.2f",
+                            requestDto.getAmount(), amountRemaining),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
+        // 3. Tạo payment transaction (PENDING)
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .invoice(invoice)
+                .amount(BigDecimal.valueOf(requestDto.getAmount()))
+                .status(PaymentTransaction.Status.PENDING)
+                .transactionType(PaymentTransaction.TransactionType.INVOICE_PAYOS)
+                .build();
+
+        PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
+
+        log.info("Created PayOS payment transaction {} for invoice {}",
+                savedTransaction.getTransactionId(), invoiceId);
+
+        // 4. Lấy thông tin renter
+        Renter renter = invoice.getBooking().getRenter();
+
+        // 5. Tạo payment với PayOS
+        // ⚠️ QUAN TRỌNG: PayOS giới hạn description TỐI ĐA 25 KÝ TỰ
+        String description = String.format("HD %d EV", invoiceId);
+        // VD: "HD 9 EV" = 8 ký tự ✅
+        // Hoặc có thể dùng: "Hoa don " + invoiceId = ~15 ký tự ✅
+
+        PayOSPaymentInfoDto payosPayment = payosPaymentService.createPayment(
+                savedTransaction.getTransactionId(),
+                requestDto.getAmount().intValue(),
+                description,
+                renter.getFullName(),
+                renter.getEmail()
+        );
+
+        // 6. Lưu orderCode và paymentLinkId vào transaction để tra cứu sau này
+        savedTransaction.setOrderCode(payosPayment.getOrderCode());
+        savedTransaction.setPaymentLinkId(payosPayment.getPaymentLinkId());
+        paymentTransactionRepository.save(savedTransaction);
+
+        // 7. Kiểm tra kết quả
+        if (!"PENDING".equals(payosPayment.getStatus())) {
+            // Tạo payment thất bại
+            savedTransaction.setStatus(PaymentTransaction.Status.FAILED);
+            paymentTransactionRepository.save(savedTransaction);
+
+            log.error("PayOS payment creation failed for transaction {}: {}",
+                    savedTransaction.getTransactionId(), payosPayment.getMessage());
+
+            throw new CustomException(
+                    "Failed to create PayOS payment: " + payosPayment.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+
+        return payosPayment;
+    }
+
+    /**
+     * Xử lý webhook từ PayOS
+     */
+    @Transactional
+    public PayOSWebhookResponse handlePayOSWebhook(PayOSWebhookRequest webhookRequest) {
+
+        log.info("Processing PayOS webhook - OrderCode: {}, Code: {}",
+                webhookRequest.getData().getOrderCode(), webhookRequest.getData().getCode());
+
+        try {
+            // 1. Verify signature
+            boolean isValidSignature = payosPaymentService.verifyWebhookSignature(webhookRequest);
+
+            if (!isValidSignature) {
+                log.error("Invalid PayOS webhook signature - OrderCode: {}",
+                        webhookRequest.getData().getOrderCode());
+                return payosPaymentService.createWebhookResponse(false, "Invalid signature");
+            }
+
+            // 2. Parse transaction ID từ order code
+            // Trong production, query từ DB bằng orderCode
+//            Long orderCode = webhookRequest.getData().getOrderCode();
+//            PaymentTransaction transaction = paymentTransactionRepository
+//                    .findByOrderCode(orderCode)
+//                    .stream()
+//                    .filter(t -> t.getTransactionType() == PaymentTransaction.TransactionType.INVOICE_PAYOS)
+//                    .filter(t -> t.getStatus() == PaymentTransaction.Status.PENDING)
+//                    .findFirst()
+//                    .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
+            // 2. Tìm transaction theo orderCode
+            Long orderCode = webhookRequest.getData().getOrderCode();
+            PaymentTransaction transaction = paymentTransactionRepository
+                    .findByOrderCode(orderCode)
+                    .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
+
+            // 3. Kiểm tra transaction chưa xử lý (tránh duplicate webhook)
+            if (transaction.getStatus() != PaymentTransaction.Status.PENDING) {
+                log.warn("Transaction {} already processed, status: {}",
+                        transaction.getTransactionId(), transaction.getStatus());
+                return payosPaymentService.createWebhookResponse(true, "Already processed");
+            }
+
+            // 4. Xử lý theo result code
+            if ("00".equals(webhookRequest.getData().getCode())) {
+                // Thanh toán thành công
+                handleSuccessfulPayOSPayment(transaction, webhookRequest);
+            } else {
+                // Thanh toán thất bại
+                handleFailedPayOSPayment(transaction, webhookRequest);
+            }
+
+            // 5. Trả về response cho PayOS
+            return payosPaymentService.createWebhookResponse(true, "Processed successfully");
+
+        } catch (Exception e) {
+            log.error("Error processing PayOS webhook - OrderCode: {}",
+                    webhookRequest.getData().getOrderCode(), e);
+            return payosPaymentService.createWebhookResponse(false, "Error: " + e.getMessage());
+        }
+    }
+
+//    @Transactional
+//    public PayOSWebhookResponse handlePayOSWebhook(PayOSWebhookRequest webhookRequest) {
+//
+//        log.info("Processing PayOS webhook - OrderCode: {}, Code: {}",
+//                webhookRequest.getData().getOrderCode(), webhookRequest.getData().getCode());
+//
+//        try {
+//            // 1️⃣ Verify signature
+//            boolean isValidSignature = payosPaymentService.verifyWebhookSignature(webhookRequest);
+//            if (!isValidSignature) {
+//                log.error("Invalid PayOS webhook signature - OrderCode: {}",
+//                        webhookRequest.getData().getOrderCode());
+//                return payosPaymentService.createWebhookResponse(false, "Invalid signature");
+//            }
+//
+//            // 2️⃣ Lấy transaction theo orderCode
+//            Long orderCode = webhookRequest.getData().getOrderCode();
+//            PaymentTransaction transaction = paymentTransactionRepository
+//                    .findByOrderCode(orderCode)
+//                    .stream()
+//                    .filter(t -> t.getTransactionType() == PaymentTransaction.TransactionType.INVOICE_PAYOS)
+//                    .findFirst()
+//                    .orElseThrow(() -> new NotFoundException("Transaction not found for orderCode: " + orderCode));
+//
+//            // 3️⃣ Tránh xử lý trùng webhook
+//            if (transaction.getStatus() != PaymentTransaction.Status.PENDING) {
+//                log.warn("Transaction {} already processed, status: {}",
+//                        transaction.getTransactionId(), transaction.getStatus());
+//                return payosPaymentService.createWebhookResponse(true, "Already processed");
+//            }
+//
+//            // 4️⃣ Xử lý kết quả PayOS
+//            String resultCode = webhookRequest.getData().getCode();
+//
+//            if ("00".equals(resultCode)) {
+//                // ✅ Thành công
+//                transaction.setStatus(PaymentTransaction.Status.SUCCESS);
+//                paymentTransactionRepository.save(transaction);
+//
+//                Invoice invoice = transaction.getInvoice();
+//                if (invoice == null) {
+//                    log.warn("⚠️ No invoice found for transaction {}", transaction.getTransactionId());
+//                    return payosPaymentService.createWebhookResponse(false, "Invoice not found");
+//                }
+//
+//                // 🧾 Cập nhật hóa đơn
+//                invoice.setStatus(Invoice.Status.PAID);
+//                invoice.setPaymentMethod(Invoice.PaymentMethod.PAYOS);
+//                invoice.setCompletedAt(LocalDateTime.now());
+//                invoiceRepository.save(invoice);
+//
+//                Booking booking = invoice.getBooking();
+//                if (booking != null) {
+//                    // ✅ Nếu là tiền cọc
+//                    if (invoice.getType() == Invoice.Type.DEPOSIT) {
+//                        booking.setDepositStatus(Booking.DepositStatus.PAID);
+//                        booking.setStatus(Booking.Status.RESERVED);
+//                        bookingRepository.save(booking);
+//                        log.info("🚗 Booking #{} deposit -> PAID, status -> RESERVED", booking.getBookingId());
+//                    }
+//
+//                    // ✅ Nếu là hóa đơn cuối
+//                    else if (invoice.getType() == Invoice.Type.FINAL) {
+//                        booking.setStatus(Booking.Status.COMPLETED);
+//                        bookingRepository.save(booking);
+//                        log.info("✅ Booking #{} updated -> COMPLETED (final invoice)", booking.getBookingId());
+//                    }
+//                }
+//
+//                // 🔔 Gửi thông báo
+//                notificationService.sendPaymentSuccess(invoice.getBooking(), transaction.getAmount().doubleValue());
+//                log.info("💰 Invoice #{} marked PAID via PAYOS", invoice.getInvoiceId());
+//            }
+//            else {
+//                // ❌ Thanh toán thất bại
+//                transaction.setStatus(PaymentTransaction.Status.FAILED);
+//                paymentTransactionRepository.save(transaction);
+//
+//                Invoice invoice = transaction.getInvoice();
+//                if (invoice != null) {
+//                    invoice.setStatus(Invoice.Status.CANCELLED);
+//                    invoice.setPaymentMethod(Invoice.PaymentMethod.PAYOS);
+//                    invoiceRepository.save(invoice);
+//                    log.warn("❌ Invoice #{} set to CANCELLED (PayOS failed)", invoice.getInvoiceId());
+//                }
+//            }
+//
+//            // 5️⃣ Trả về cho PayOS
+//            return payosPaymentService.createWebhookResponse(true, "Processed successfully");
+//
+//        } catch (Exception e) {
+//            log.error("Error processing PayOS webhook - OrderCode: {}", webhookRequest.getData().getOrderCode(), e);
+//            return payosPaymentService.createWebhookResponse(false, "Error: " + e.getMessage());
+//        }
+//    }
+
+
     // Helper methods
 
     private void updateInvoiceStatus(Invoice invoice, Double paidAmount) {
@@ -271,12 +659,30 @@ public class PaymentServiceImpl implements PaymentService {
             invoice.setStatus(Invoice.Status.PAID);
             invoice.setCompletedAt(LocalDateTime.now());
 
-            // Hoàn cọc nếu là final invoice
-            if (invoice.getType() == Invoice.Type.FINAL && invoice.getDepositAmount() > 0) {
-                refundDeposit(invoice);
+            // Cập nhật deposit status
+            if (invoice.getType() == Invoice.Type.DEPOSIT) {
+                Booking booking = invoice.getBooking();
+                booking.setDepositStatus(Booking.DepositStatus.PAID);
+//                booking.setStatus(Booking.Status.RESERVED);
+                bookingRepository.save(booking);
             }
+
         } else if (totalPaid > 0) {
-            invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            if (invoice.getType() == Invoice.Type.FINAL) {
+                List<Policy> policies = policyRepository.findByPolicyType(Policy.PolicyType.DEPOSIT_AMOUNT);
+                if (policies.isEmpty()) {
+                    throw new NotFoundException("Late payment fee policy not found");
+                }
+                Policy policy = policies.getFirst();
+                Double total = amountRemaining - policy.getValue();
+                if (total <= 0) {
+                    // Đã thanh toán đủ sau khi trừ phí
+                    invoice.setStatus(Invoice.Status.PAID);
+                    invoice.setCompletedAt(LocalDateTime.now());
+                }
+            } else {
+                invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            }
         }
 
         invoiceRepository.save(invoice);
@@ -331,10 +737,46 @@ public class PaymentServiceImpl implements PaymentService {
         );
 
         // 4. Nếu là final invoice và đã thanh toán đủ → hoàn cọc
-        if (invoice.getType() == Invoice.Type.FINAL
-                && invoice.getStatus() == Invoice.Status.PAID) {
-            refundDeposit(invoice);
-        }
+//        if (invoice.getType() == Invoice.Type.FINAL
+//                && invoice.getStatus() == Invoice.Status.PAID) {
+//            refundDeposit(invoice);
+//        }
+
+        log.info("Payment processed successfully - TransactionId: {}",
+                transaction.getTransactionId());
+    }
+
+    private void handleSuccessfulPayOSPayment(PaymentTransaction transaction, PayOSWebhookRequest ipnRequest) {
+
+        log.info("Processing successful payment - TransactionId: {}, MoMoTransId: {}",
+                transaction.getTransactionId(), ipnRequest.getCode());
+
+        PayOSWebhookData webhookData = ipnRequest.getData();
+
+        // 1. Cập nhật transaction status
+        transaction.setStatus(PaymentTransaction.Status.SUCCESS);
+        transaction.setReferenceCode(webhookData.getReference());
+        transaction.setPaymentLinkId(webhookData.getPaymentLinkId());
+        transaction.setNotes("Payment successful via PayOS");
+        paymentTransactionRepository.save(transaction);
+
+        log.info("Updated transaction {} to SUCCESS", transaction.getTransactionId());
+
+        // 2. Cập nhật invoice status
+        Invoice invoice = transaction.getInvoice();
+        updateInvoiceStatus(invoice);
+
+        // 3. Gửi thông báo
+        notificationService.sendPaymentSuccess(
+                invoice.getBooking(),
+                transaction.getAmount().doubleValue()
+        );
+
+//        // 4. Nếu là final invoice và đã thanh toán đủ → hoàn cọc
+//        if (invoice.getType() == Invoice.Type.FINAL
+//                && invoice.getStatus() == Invoice.Status.PAID) {
+//            refundDeposit(invoice);
+//        }
 
         log.info("Payment processed successfully - TransactionId: {}",
                 transaction.getTransactionId());
@@ -386,13 +828,26 @@ public class PaymentServiceImpl implements PaymentService {
             if (invoice.getType() == Invoice.Type.DEPOSIT) {
                 Booking booking = invoice.getBooking();
                 booking.setDepositStatus(Booking.DepositStatus.PAID);
-                booking.setStatus(Booking.Status.RESERVED);
+//                booking.setStatus(Booking.Status.RESERVED);
                 bookingRepository.save(booking);
             }
 
         } else if (totalPaid > 0) {
-            // Đã thanh toán một phần
-            invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            if (invoice.getType() == Invoice.Type.FINAL) {
+                List<Policy> policies = policyRepository.findByPolicyType(Policy.PolicyType.DEPOSIT_AMOUNT);
+                if (policies.isEmpty()) {
+                    throw new NotFoundException("Late payment fee policy not found");
+                }
+                Policy policy = policies.get(0);
+                Double total = amountRemaining - policy.getValue();
+                if (total <= 0) {
+                    // Đã thanh toán đủ sau khi trừ phí
+                    invoice.setStatus(Invoice.Status.PAID);
+                    invoice.setCompletedAt(LocalDateTime.now());
+                }
+            } else {
+                invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            }
         }
 
         invoiceRepository.save(invoice);
@@ -457,18 +912,55 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private Invoice getInvoiceAndValidate(Long invoiceId, Double amount) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
+                .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
 
+        // Validate trạng thái
         if (invoice.getStatus() == Invoice.Status.PAID) {
-            throw new CustomException("Invoice is already fully paid", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Invoice already paid", HttpStatus.BAD_REQUEST);
         }
 
-        if (amount <= 0) {
-            throw new CustomException("Payment amount must be greater than 0",
-                    HttpStatus.BAD_REQUEST);
+        if (invoice.getStatus() == Invoice.Status.CANCELLED) {
+            throw new CustomException("Invoice is cancelled", HttpStatus.BAD_REQUEST);
+        }
+
+        // Validate amount
+        if (amount == null || amount <= 0) {
+            throw new CustomException("Invalid payment amount", HttpStatus.BAD_REQUEST);
         }
 
         return invoice;
+    }
+
+    /**
+     * Xử lý thanh toán PayOS thất bại
+     */
+    private void handleFailedPayOSPayment(PaymentTransaction transaction, PayOSWebhookRequest webhookRequest) {
+
+        log.warn("Processing failed PayOS payment - TransactionId: {}, Reason: {}",
+                transaction.getTransactionId(), webhookRequest.getData().getDesc());
+
+        // Cập nhật transaction status
+        transaction.setStatus(PaymentTransaction.Status.FAILED);
+        paymentTransactionRepository.save(transaction);
+
+        // Gửi thông báo thanh toán thất bại
+        Invoice invoice = transaction.getInvoice();
+        Notification notification = Notification.builder()
+                .title("❌ Thanh toán PayOS thất bại")
+                .message(String.format(
+                        "Thanh toán %d VND cho hóa đơn #%d đã thất bại. Lý do: %s",
+                        transaction.getAmount().intValue(),
+                        invoice.getInvoiceId(),
+                        webhookRequest.getData().getDesc()
+                ))
+                .recipientType(Notification.RecipientType.RENTER)
+                .recipientId(invoice.getBooking().getRenter().getRenterId())
+                .isRead(false)
+                .build();
+
+        notificationRepository.save(notification);
+        log.info("Sent failure notification to renter {}",
+                invoice.getBooking().getRenter().getRenterId());
     }
 
     // Inject thêm các repository cần thiết

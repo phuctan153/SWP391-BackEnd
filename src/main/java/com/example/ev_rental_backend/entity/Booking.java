@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,14 +24,20 @@ public class Booking {
 
     // 🔗 Mối quan hệ
     @ManyToOne
+    @JsonIgnore
     @JoinColumn(name = "renter_id", nullable = false)
     private Renter renter;
+    @ManyToOne
+    @JoinColumn(name = "staff_receive_id") // 🧍‍♂️ Nhân viên giao xe cho người thuê
+    private Staff staffReceive;
 
     @ManyToOne
-    @JoinColumn(name = "staff_id")
-    private Staff staff;
+    @JoinColumn(name = "staff_return_id") // 🧍‍♀️ Nhân viên nhận xe khi trả
+    private Staff staffReturn;
+
 
     @ManyToOne
+    @JsonIgnore
     @JoinColumn(name = "vehicle_id", nullable = false)
     private Vehicle vehicle;
 

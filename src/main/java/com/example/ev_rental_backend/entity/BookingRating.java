@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,9 @@ public class BookingRating {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long ratingId;
 
-    @OneToOne @JoinColumn(name = "booking_id")
+    @OneToOne
+    @JsonIgnore
+    @JoinColumn(name = "booking_id")
     private Booking booking;
 
     private int vehicleRating;

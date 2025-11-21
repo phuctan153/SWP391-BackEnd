@@ -337,6 +337,32 @@ public class RenterServiceImpl implements RenterService{
         return dto;
     }
 
+    @Override
+    public List<RenterResponseDTO> getAllRenters() {
+        return renterRepository.findAll()
+                .stream()
+                .map(renterMapper::toResponseDto)
+                .toList();
+    }
+
+
+    @Override
+    public List<RenterResponseDTO> getRentersByStatus(String status) {
+        try {
+            Renter.Status enumStatus = Renter.Status.valueOf(status.toUpperCase());
+
+            // 🔹 Gọi repository bằng Enum
+            return renterRepository.findByStatus(enumStatus)
+                    .stream()
+                    .map(renterMapper::toResponseDto)
+                    .toList();
+
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + status
+                    + ". Hãy dùng một trong các giá trị: PENDING_VERIFICATION, VERIFIED, DELETED");
+        }
+    }
+
 
     @Override
     public List<RenterResponseDTO> getPendingVerificationRenters() {
@@ -391,6 +417,37 @@ public class RenterServiceImpl implements RenterService{
         renterRepository.save(renter);
     }
 
+    @Override
+    public RenterResponseDTO getRenterDetailById(Long renterId) {
+        Renter renter = renterRepository.findById(renterId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người thuê có ID: " + renterId));
+
+        RenterResponseDTO dto = renterMapper.toResponseDto(renter);
+
+        List<IdentityDocument> docs = identityDocumentRepository.findByRenter(renter);
+        for (IdentityDocument doc : docs) {
+            RenterResponseDTO.IdentityDocDTO docDTO = RenterResponseDTO.IdentityDocDTO.builder()
+                    .documentNumber(doc.getDocumentNumber())
+                    .fullName(doc.getFullName())
+                    .type(doc.getType().name())
+                    .status(doc.getStatus().name())
+                    .issueDate(doc.getIssueDate())
+                    .expiryDate(doc.getExpiryDate())
+                    .verifiedAt(doc.getVerifiedAt())
+                    .build();
+
+            if (doc.getType() == IdentityDocument.DocumentType.NATIONAL_ID) {
+                dto.setCccd(docDTO);
+            } else if (doc.getType() == IdentityDocument.DocumentType.DRIVER_LICENSE) {
+                dto.setGplx(docDTO);
+            }
+        }
+
+        dto.setKycStatus(getKycStatusForRenter(renter));
+        return dto;
+    }
+
+
     private String normalize(String input) {
         if (input == null) return "";
         return Normalizer.normalize(input, Normalizer.Form.NFD)
@@ -399,4 +456,5 @@ public class RenterServiceImpl implements RenterService{
                 .toLowerCase(Locale.ROOT)
                 .trim();
     }
+
 }

@@ -3,6 +3,7 @@ package com.example.ev_rental_backend.service.booking;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.repository.BookingRepository;
+import com.example.ev_rental_backend.repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import java.util.List;
 public class BookingBusinessRuleValidator {
 
     private final BookingRepository bookingRepository;
+    private final PolicyRepository policyRepository;
 
     /**
      * BR-05: Thời gian hợp lệ - Ngày, giờ bắt đầu và thời lượng thuê phải hợp lệ
@@ -26,197 +28,184 @@ public class BookingBusinessRuleValidator {
     public void validateBookingTime(LocalDateTime startDateTime, LocalDateTime endDateTime) {
         LocalDateTime now = LocalDateTime.now();
 
-        // Kiểm tra startDateTime phải trong tương lai
         if (startDateTime.isBefore(now)) {
-            throw new CustomException(
-                    "Start date time must be in the future (BR-05)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("⏰ Thời gian bắt đầu phải nằm trong tương lai (BR-05)", HttpStatus.BAD_REQUEST);
         }
 
-        // Kiểm tra endDateTime phải sau startDateTime
         if (endDateTime.isBefore(startDateTime) || endDateTime.isEqual(startDateTime)) {
-            throw new CustomException(
-                    "End date time must be after start date time (BR-05)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("⏳ Thời gian kết thúc phải sau thời gian bắt đầu (BR-05)", HttpStatus.BAD_REQUEST);
         }
 
-        // Tính thời lượng thuê (theo ngày)
         Duration duration = Duration.between(startDateTime, endDateTime);
         long days = duration.toDays();
 
         if (days < 1) {
-            throw new CustomException(
-                    "Rental duration must be at least 1 day (BR-05)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("⛔ Thời gian thuê tối thiểu phải là 1 ngày (BR-05)", HttpStatus.BAD_REQUEST);
         }
 
-        log.info("BR-05 validated: Booking time is valid for {} days", days);
+        log.info("✅ BR-05 hợp lệ: Thời lượng thuê {} ngày", days);
     }
 
     /**
-     * BR-06: Đặt xe kèm cọc - Việc giữ chỗ chỉ hợp lệ sau khi thanh toán tiền cọc
+     * BR-06: Đặt xe kèm cọc
      */
     public void validateDepositPaid(Booking booking) {
         boolean hasDepositPaid = booking.getInvoices().stream()
-                .anyMatch(inv -> inv.getType() == Invoice.Type.DEPOSIT
-                        && inv.getStatus() == Invoice.Status.PAID);
+                .anyMatch(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID);
 
         if (!hasDepositPaid) {
-            log.error("BR-06 Violation: Booking {} has no paid deposit", booking.getBookingId());
-            throw new CustomException(
-                    "Deposit must be paid before pickup (BR-06)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("💰 Cần thanh toán tiền cọc trước khi nhận xe (BR-06)", HttpStatus.BAD_REQUEST);
         }
 
-        log.info("BR-06 validated: Deposit paid for booking {}", booking.getBookingId());
+        log.info("✅ BR-06 hợp lệ: Đã thanh toán tiền cọc cho booking {}", booking.getBookingId());
     }
 
     /**
      * BR-07: Ưu tiên công bằng - Một xe không thể được nhiều khách giữ chỗ cùng lúc
      */
-    public void validateVehicleAvailable(Vehicle vehicle, LocalDateTime startDateTime,
-                                         LocalDateTime endDateTime) {
-
+    public void validateVehicleAvailable(Vehicle vehicle, LocalDateTime startDateTime, LocalDateTime endDateTime) {
         if (vehicle.getStatus() != Vehicle.Status.AVAILABLE) {
-            throw new CustomException(
-                    "Vehicle is not available (BR-07)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("Xe hiện không khả dụng (BR-07)", HttpStatus.BAD_REQUEST);
         }
 
-        // Kiểm tra xem có booking nào overlap không
-        List<Booking> overlappingBookings = bookingRepository
-                .findOverlappingBookings(vehicle.getVehicleId(), startDateTime, endDateTime);
+        // 🔹 Lấy giá trị policy giữ xe (mặc định 2 ngày)
+        int holdDays = policyRepository
+                .findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(
+                        Policy.PolicyType.VEHICLE_HOLD_DAYS_AFTER_BOOKING,
+                        Policy.Status.ACTIVE
+                )
+                .map(policy -> policy.getValue().intValue())
+                .orElse(2);
+
+        // 🔹 Cộng thêm thời gian giữ xe
+        LocalDateTime extendedEndDate = endDateTime.plusDays(holdDays);
+
+        // 🔹 Truy vấn tìm booking bị trùng thời gian
+        List<Booking> overlappingBookings = bookingRepository.findBookingsWithHoldPeriod(
+                vehicle.getVehicleId(),
+                startDateTime,
+                extendedEndDate
+        );
+
 
         if (!overlappingBookings.isEmpty()) {
-            log.error("BR-07 Violation: Vehicle {} has overlapping bookings",
-                    vehicle.getVehicleId());
+            Booking conflict = overlappingBookings.get(0);
             throw new CustomException(
-                    "Vehicle is already booked for the selected time period (BR-07)",
+                    String.format(
+                            "Xe đã được đặt từ %s đến %s",
+                            conflict.getStartDateTime().toLocalDate(),
+                            conflict.getEndDateTime().toLocalDate().plusDays(holdDays),
+                            holdDays
+                    ),
                     HttpStatus.BAD_REQUEST
             );
         }
 
-        log.info("BR-07 validated: Vehicle {} is available", vehicle.getVehicleId());
+        log.info("✅ BR-07 hợp lệ: Xe {} sẵn sàng cho thuê (bao gồm thời gian giữ xe {} ngày)",
+                vehicle.getVehicleId(), holdDays);
     }
+
+
+
+
 
     /**
      * BR-16: Giới hạn thuê 1 xe - Mỗi tài khoản chỉ được có 1 booking RESERVED hoặc IN_USE
      */
     public void validateRenterHasNoActiveBooking(Renter renter) {
-        boolean hasActiveBooking = bookingRepository.existsByRenter_RenterIdAndStatusIn(
+        Booking hasActiveBooking = bookingRepository.findByRenter_RenterIdAndStatusIn(
                 renter.getRenterId(),
-                List.of(Booking.Status.RESERVED, Booking.Status.IN_USE)
+                List.of(Booking.Status.RESERVED, Booking.Status.IN_USE, Booking.Status.PENDING)
         );
 
-        if (hasActiveBooking) {
-            log.error("BR-16 Violation: Renter {} has an active booking", renter.getRenterId());
+        if (hasActiveBooking != null) {
             throw new CustomException(
-                    "You already have an active booking. Please complete it before creating a new one (BR-16)",
+                    "🚫 Bạn đã có một đơn thuê xe đang hoạt động (BR-16). Hãy hoàn tất đơn hiện tại trước khi tạo mới. Mã đơn: "
+                            + hasActiveBooking.getBookingId(),
                     HttpStatus.BAD_REQUEST
             );
         }
 
-        log.info("BR-16 validated: Renter {} has no active bookings", renter.getRenterId());
+        log.info("✅ BR-16 hợp lệ: Renter {} không có đơn đặt xe đang hoạt động", renter.getRenterId());
     }
 
     /**
-     * BR-22: Giới hạn đặt trước - Thời gian đặt xe trước ngày sử dụng tối thiểu 7 ngày và tối đa 14 ngày
+     * BR-22: Giới hạn đặt trước - lấy từ bảng Policy
      */
     public void validateAdvanceBookingTime(LocalDateTime startDateTime) {
         LocalDate now = LocalDate.now();
         LocalDate startDate = startDateTime.toLocalDate();
+        long daysInAdvance = Duration.between(now.atStartOfDay(), startDate.atStartOfDay()).toDays();
 
-        long daysInAdvance = Duration.between(
-                now.atStartOfDay(),
-                startDate.atStartOfDay()
-        ).toDays();
+        double minDays = policyRepository
+                .findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(
+                        Policy.PolicyType.MIN_DAYS_BEFORE_BOOKING, Policy.Status.ACTIVE)
+                .map(Policy::getValue)
+                .orElse(7.0);
 
-        if (daysInAdvance < 7) {
-            throw new CustomException(
-                    "Booking must be made at least 7 days in advance (BR-22)",
-                    HttpStatus.BAD_REQUEST
-            );
+        double maxDays = policyRepository
+                .findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(
+                        Policy.PolicyType.MAX_DAYS_BEFORE_BOOKING, Policy.Status.ACTIVE)
+                .map(Policy::getValue)
+                .orElse(14.0);
+
+        if (daysInAdvance < minDays) {
+            throw new CustomException(String.format("📅 Bạn phải đặt xe trước ít nhất %.0f ngày (BR-22)", minDays), HttpStatus.BAD_REQUEST);
         }
 
-        if (daysInAdvance > 14) {
-            throw new CustomException(
-                    "Booking cannot be made more than 14 days in advance (BR-22)",
-                    HttpStatus.BAD_REQUEST
-            );
+        if (daysInAdvance > maxDays) {
+            throw new CustomException(String.format("📅 Bạn không thể đặt xe trước quá %.0f ngày (BR-22)", maxDays), HttpStatus.BAD_REQUEST);
         }
 
-        log.info("BR-22 validated: Booking made {} days in advance", daysInAdvance);
+        log.info("✅ BR-22 hợp lệ: Đặt xe trước {} ngày (giới hạn min={}, max={})", daysInAdvance, minDays, maxDays);
     }
 
     /**
-     * BR-23: Bắt buộc cọc - Nếu chưa có invoice loại DEPOSIT được thanh toán → không pickup
+     * BR-23: Cọc bắt buộc trước khi nhận xe
      */
     public void validateDepositPaidBeforePickup(Booking booking) {
-        validateDepositPaid(booking); // Same as BR-06
+        validateDepositPaid(booking);
     }
 
     /**
-     * BR-24: Kiểm tra pin tối thiểu - Trước khi giao xe, pin phải ≥ 60%
+     * BR-24: Kiểm tra pin tối thiểu
      */
     public void validateBatteryLevel(Vehicle vehicle) {
         if (vehicle.getBatteryLevel() == null || vehicle.getBatteryLevel() < 60.0) {
-            log.error("BR-24 Violation: Vehicle {} battery level is {}%",
-                    vehicle.getVehicleId(), vehicle.getBatteryLevel());
             throw new CustomException(
-                    "Vehicle battery level must be at least 60% before pickup (BR-24)",
+                    "🔋 Mức pin của xe phải đạt ít nhất 60% trước khi giao xe (BR-24)",
                     HttpStatus.BAD_REQUEST
             );
         }
 
-        log.info("BR-24 validated: Vehicle {} battery level is {}%",
-                vehicle.getVehicleId(), vehicle.getBatteryLevel());
+        log.info("✅ BR-24 hợp lệ: Mức pin xe {} là {}%", vehicle.getVehicleId(), vehicle.getBatteryLevel());
     }
 
     /**
-     * BR-14: Trả trễ - Tính phí theo quy định
-     * - Trễ ≤ 4 giờ: tính phí theo giờ
-     * - Trễ > 4 giờ: coi như trễ nguyên ngày → tính phí 1 ngày
+     * BR-14: Tính phí trả trễ
      */
     public Double calculateLateFee(Booking booking) {
-        if (booking.getActualReturnTime() == null || booking.getEndDateTime() == null) {
-            return 0.0;
-        }
+        if (booking.getActualReturnTime() == null || booking.getEndDateTime() == null) return 0.0;
+        if (!booking.getActualReturnTime().isAfter(booking.getEndDateTime())) return 0.0;
 
-        // Nếu trả đúng giờ hoặc sớm
-        if (!booking.getActualReturnTime().isAfter(booking.getEndDateTime())) {
-            return 0.0;
-        }
-
-        Duration lateDuration = Duration.between(
-                booking.getEndDateTime(),
-                booking.getActualReturnTime()
-        );
+        Duration lateDuration = Duration.between(booking.getEndDateTime(), booking.getActualReturnTime());
         long lateHours = lateDuration.toHours();
 
         Double lateFee;
         if (lateHours <= 4) {
-            // Tính theo giờ
             lateFee = lateHours * booking.getPriceSnapshotPerHour();
-            log.info("BR-14: Late {} hours, charging hourly rate: {} VND",
-                    lateHours, lateFee);
+            log.info("🕐 BR-14: Trễ {} giờ → tính theo giờ: {} VND", lateHours, lateFee);
         } else {
-            // Tính theo ngày
-            long lateDays = (lateHours + 23) / 24; // Round up
+            long lateDays = (lateHours + 23) / 24;
             lateFee = lateDays * booking.getPriceSnapshotPerDay();
-            log.info("BR-14: Late {} hours ({} days), charging daily rate: {} VND",
-                    lateHours, lateDays, lateFee);
+            log.info("🕐 BR-14: Trễ {} giờ (~{} ngày) → tính theo ngày: {} VND", lateHours, lateDays, lateFee);
         }
 
         return lateFee;
     }
 
     /**
-     * BR-15: Hoàn tất thanh toán - Người thuê phải thanh toán đầy đủ trước khi hoàn tất
+     * BR-15: Thanh toán đầy đủ trước khi hoàn tất
      */
     public void validateFullPayment(Booking booking) {
         Invoice finalInvoice = booking.getInvoices().stream()
@@ -225,45 +214,31 @@ public class BookingBusinessRuleValidator {
                 .orElse(null);
 
         if (finalInvoice == null) {
-            throw new CustomException(
-                    "Final invoice must be created before completing booking (BR-15)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("💳 Hệ thống chưa tạo hóa đơn cuối cùng cho đơn thuê (BR-15)", HttpStatus.BAD_REQUEST);
         }
 
         if (finalInvoice.getStatus() != Invoice.Status.PAID) {
-            log.error("BR-15 Violation: Booking {} final invoice not fully paid",
-                    booking.getBookingId());
-            throw new CustomException(
-                    "Final invoice must be fully paid before completing booking (BR-15)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("💳 Bạn cần thanh toán đầy đủ hóa đơn cuối cùng trước khi hoàn tất đơn thuê (BR-15)", HttpStatus.BAD_REQUEST);
         }
 
-        log.info("BR-15 validated: Full payment completed for booking {}",
-                booking.getBookingId());
+        log.info("✅ BR-15 hợp lệ: Đơn {} đã thanh toán đầy đủ", booking.getBookingId());
     }
 
     /**
-     * BR-11: Đúng trạm - Xe phải được trả tại trạm quy định
+     * BR-11: Xe phải được trả đúng trạm
      */
     public void validateReturnStation(Booking booking, Long returnStationId) {
         Long originalStationId = booking.getVehicle().getStation().getStationId();
 
         if (!originalStationId.equals(returnStationId)) {
-            log.error("BR-11 Violation: Vehicle must be returned to station {}, but attempting to return to station {}",
-                    originalStationId, returnStationId);
-            throw new CustomException(
-                    "Vehicle must be returned to the original pickup station (BR-11)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("📍 Xe phải được trả tại trạm ban đầu (BR-11)", HttpStatus.BAD_REQUEST);
         }
 
-        log.info("BR-11 validated: Vehicle returned to correct station {}", originalStationId);
+        log.info("✅ BR-11 hợp lệ: Xe được trả đúng trạm {}", originalStationId);
     }
 
     /**
-     * BR-08: Xác thực danh tính - Người thuê phải xuất trình CCCD + GPLX
+     * BR-08: Kiểm tra CCCD + GPLX
      */
     public void validateIdentityDocuments(Renter renter) {
         boolean hasCCCD = renter.getIdentityDocuments().stream()
@@ -275,15 +250,9 @@ public class BookingBusinessRuleValidator {
                         && doc.getStatus() == IdentityDocument.DocumentStatus.VERIFIED);
 
         if (!hasCCCD || !hasGPLX) {
-            log.error("BR-08 Violation: Renter {} missing verified identity documents",
-                    renter.getRenterId());
-            throw new CustomException(
-                    "Both CCCD and Driver License must be verified before pickup (BR-08)",
-                    HttpStatus.BAD_REQUEST
-            );
+            throw new CustomException("🪪 Bạn cần xác thực cả CCCD và Giấy phép lái xe trước khi nhận xe (BR-08)", HttpStatus.BAD_REQUEST);
         }
 
-        log.info("BR-08 validated: Renter {} has verified identity documents",
-                renter.getRenterId());
+        log.info("✅ BR-08 hợp lệ: Renter {} đã xác thực đủ CCCD + GPLX", renter.getRenterId());
     }
 }

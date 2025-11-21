@@ -1,4 +1,4 @@
-package com.example.ev_rental_backend.dto.admin;
+package com.example.ev_rental_backend.dto.staff;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,10 +9,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AdminResponseDTO {
-    private Long globalAdminId;
+public class StaffListDTO {
+    private Long staffId;
     private String fullName;
     private String email;
     private String phoneNumber;
-    private String status;
+    private Long completedCount;
 }

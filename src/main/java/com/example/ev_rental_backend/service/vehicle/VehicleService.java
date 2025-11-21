@@ -5,13 +5,14 @@ import com.example.ev_rental_backend.dto.vehicle.VehicleRequestDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleResDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleDTO;
 import com.example.ev_rental_backend.dto.vehicle.VehicleDetailResponseDTO;
+import com.example.ev_rental_backend.entity.Station;
 
 import java.util.List;
 
 public interface VehicleService {
+    public Station getCurrentStationByStaff(Long staffId);
+    public List<VehicleResponseDTO> getVehiclesByCurrentStaffStation(Long staffId);
     List<VehicleResponseDTO> getVehiclesByStationId(Long stationId);
-
-
     VehicleDetailResponseDTO getVehicleDetail(Long vehicleId);
     List<VehicleDTO> getAllVehicles();
     VehicleDTO createVehicle(VehicleDTO dto);

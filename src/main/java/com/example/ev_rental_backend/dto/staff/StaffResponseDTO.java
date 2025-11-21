@@ -1,4 +1,4 @@
-package com.example.ev_rental_backend.dto.staff_station;
+package com.example.ev_rental_backend.dto.staff;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

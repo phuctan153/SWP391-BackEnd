@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.payment.*;
+import com.example.ev_rental_backend.dto.refund.RefundRequestDTO;
 import com.example.ev_rental_backend.service.payment.PaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -79,6 +80,36 @@ public class PaymentController {
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(transaction)
+                .build());
+    }
+
+    @PostMapping("/invoice/{invoiceId}/refund/cash")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<PaymentResponseDto>> refundDepositByCash(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody RefundRequestDTO requestDto) {
+
+        PaymentResponseDto response = paymentService.refundDepositByCash(invoiceId, requestDto);
+
+        return ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(response)
+                .build());
+    }
+
+    @PostMapping("/invoice/{invoiceId}/refund/wallet")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<ApiResponse<PaymentResponseDto>> refundDepositToWallet(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody RefundRequestDTO requestDto) {
+
+        PaymentResponseDto response = paymentService.refundDepositToWallet(invoiceId, requestDto);
+
+        return ResponseEntity.ok(ApiResponse.<PaymentResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(response)
                 .build());
     }
 

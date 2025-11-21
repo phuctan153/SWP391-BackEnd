@@ -25,4 +25,17 @@ public interface StationRepository extends JpaRepository<Station, Long> {
             "ABS(s.latitude - :latitude) < 0.001 AND " +
             "ABS(s.longitude - :longitude) < 0.001")
     List<Station> findByNearbyCoordinates(Double latitude, Double longitude);
+
+    @Query("""
+    SELECT s.stationId, s.name, COUNT(b)
+    FROM Station s
+    JOIN s.vehicles v
+    JOIN v.bookings b
+    WHERE b.status IN ('RESERVED', 'IN_USE')
+    GROUP BY s.stationId, s.name
+    """)
+    List<Object[]> countActiveBookingsByStation();
+
+    @Query("SELECT s FROM Station s WHERE s.status = com.example.ev_rental_backend.entity.Station.Status.ACTIVE")
+    List<Station> findAllActiveStations();
 }

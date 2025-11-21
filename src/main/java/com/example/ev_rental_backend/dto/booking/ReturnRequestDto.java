@@ -28,7 +28,7 @@ public class ReturnRequestDto {
 
     private String damageDescription;
 
-    private Double damageFee;
+//    private Double damageFee;
 
     private String notes;
 }

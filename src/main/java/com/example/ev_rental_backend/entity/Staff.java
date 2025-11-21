@@ -40,8 +40,13 @@ public class Staff {
 
     public enum Status { ACTIVE, INACTIVE }
 
-    @OneToMany(mappedBy = "staff")
-    private List<Booking> bookings;
+    // 🔹 Các booking mà nhân viên này phụ trách bàn giao xe (pickup)
+    @OneToMany(mappedBy = "staffReceive", fetch = FetchType.LAZY)
+    private List<Booking> receivedBookings;
+
+    // 🔹 Các booking mà nhân viên này phụ trách nhận lại xe (return)
+    @OneToMany(mappedBy = "staffReturn", fetch = FetchType.LAZY)
+    private List<Booking> returnedBookings;
 
     @OneToMany(mappedBy = "staff")
     private List<StaffStation> staffStations;

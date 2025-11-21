@@ -1,6 +1,6 @@
 package com.example.ev_rental_backend.service.auth;
 
-import com.example.ev_rental_backend.dto.update_password.UpdatePasswordRequest;
+import com.example.ev_rental_backend.dto.update_profile.UpdatePasswordRequest;
 import com.example.ev_rental_backend.entity.Admin;
 import com.example.ev_rental_backend.entity.Renter;
 import com.example.ev_rental_backend.entity.Staff;

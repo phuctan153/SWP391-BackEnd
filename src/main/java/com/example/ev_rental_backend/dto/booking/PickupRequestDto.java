@@ -11,11 +11,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class PickupRequestDto {
-
     private Long staffId;
-
-    @NotBlank(message = "Identity document number is required")
-    private String identityDocumentNumber;
-
     private String notes;
 }

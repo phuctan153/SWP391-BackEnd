@@ -1,5 +1,6 @@
 package com.example.ev_rental_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -18,9 +19,11 @@ public class Contract {
 
     // 🔗 FK → Booking (1-1)
     @OneToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
+    @Builder.Default
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<TermCondition> terms = new java.util.ArrayList<>();
 
@@ -40,6 +43,10 @@ public class Contract {
     // 📎 File hợp đồng PDF hoặc URL cloud
     @Column(length = 255)
     private String contractFileUrl;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_staff_id")
+    private Staff createdByStaff;
 
     // ✍️ Chữ ký điện tử của admin (base64 hoặc URL ảnh)
     @Column(length = 512)

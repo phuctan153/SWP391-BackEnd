@@ -7,6 +7,7 @@ import com.example.ev_rental_backend.dto.station_vehicle.VehicleResponseDTO;
 import com.example.ev_rental_backend.entity.Station;
 import com.example.ev_rental_backend.entity.Vehicle;
 import com.example.ev_rental_backend.exception.CustomException;
+import com.example.ev_rental_backend.exception.NotFoundException;
 import com.example.ev_rental_backend.mapper.StationMapper;
 import com.example.ev_rental_backend.repository.StationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,6 +73,22 @@ public class StationServiceImpl implements StationService {
 
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public StationResponseDTO getStationById(Long stationId) {
+        Station station = stationRepository.findById(stationId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy trạm có ID: " + stationId));
+
+        return StationResponseDTO.builder()
+                .stationId(station.getStationId())
+                .name(station.getName())
+                .latitude(station.getLatitude())
+                .longitude(station.getLongitude())
+                .status(station.getStatus().name())
+//                .vehicleCount(station.getVehicles() != null ? station.getVehicles().size() : 0)
+                .build();
+    }
+
 
     @Override
     public List<StationResponseDTO> getAllStations() {
@@ -152,6 +169,40 @@ public class StationServiceImpl implements StationService {
 
         // 6. Map Entity -> Response DTO và trả về
         return stationMapper.toResDto(savedStation);
+    }
+
+    @Override
+    public StationResponseDTO updateStation(Long stationId, StationRequestDTO requestDTO) {
+        Station station = stationRepository.findById(stationId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy trạm"));
+
+        station.setName(requestDTO.getName());
+        station.setLocation(requestDTO.getLocation());
+        station.setLatitude(requestDTO.getLatitude());
+        station.setLongitude(requestDTO.getLongitude());
+        station.setCar_number(requestDTO.getCarNumber());
+
+        // ✅ Chuyển đổi String → Enum (nếu người dùng có gửi status)
+        if (requestDTO.getStatus() != null) {
+            try {
+                station.setStatus(Station.Status.valueOf(requestDTO.getStatus().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new RuntimeException("Trạng thái không hợp lệ! (Chỉ chấp nhận: ACTIVE, INACTIVE)");
+            }
+        }
+
+        Station updated = stationRepository.save(station);
+        return stationMapper.toDto(updated);
+    }
+
+    @Override
+    public void deleteStation(Long stationId) {
+        Station station = stationRepository.findById(stationId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy trạm"));
+
+        // 🟠 Xóa mềm: chỉ đổi trạng thái
+        station.setStatus(Station.Status.INACTIVE);
+        stationRepository.save(station);
     }
 
     /**

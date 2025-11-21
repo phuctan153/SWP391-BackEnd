@@ -35,13 +35,27 @@ public class PaymentTransaction {
 
     // Trạng thái giao dịch
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false, length = 50)
     private Status status = Status.PENDING;
 
     // Loại giao dịch
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "transaction_type", nullable = false, length = 50)
     private TransactionType transactionType;
+
+    // trường orderCode
+    @Column(unique = true)
+    private Long orderCode;
+
+    // 🆕 Payment Link ID từ PayOS
+    private String paymentLinkId;
+
+    // 🆕 Reference code từ PayOS (mã giao dịch thực tế)
+    private String referenceCode;
+
+    // 🆕 Ghi chú / Lý do (VD: lý do failed, cancelled)
+    @Column(length = 500)
+    private String notes;
 
     @PrePersist
     public void prePersist() {
@@ -60,8 +74,10 @@ public class PaymentTransaction {
         INVOICE_CASH,       // Thanh toán hóa đơn bằng tiền mặt
         INVOICE_WALLET,     // Thanh toán hóa đơn bằng ví
         INVOICE_MOMO,       // Thanh toán hóa đơn qua Momo
+        INVOICE_PAYOS,      // Thanh toán hóa đơn qua Payos
         WALLET_TOPUP,       // Nạp tiền vào ví
         WALLET_WITHDRAW,     // Rút tiền khỏi ví
-        WALLET_REFUND_DEPOSIT
+        WALLET_REFUND_DEPOSIT,
+        REFUND_CASH
     }
 }

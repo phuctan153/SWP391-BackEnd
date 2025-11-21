@@ -37,6 +37,10 @@ public class Invoice {
     @Column(nullable = false)
     private Double totalAmount;
 
+    // ✅ Số tiền cần HOÀN TRẢ cho khách (nếu cọc > tổng chi phí)
+    @Column
+    private Double refundAmount = 0.0;
+
     // Trạng thái thanh toán
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -47,7 +51,7 @@ public class Invoice {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod paymentMethod = PaymentMethod.CASH;
-    public enum PaymentMethod { CASH, WALLET, MOMO }
+    public enum PaymentMethod { CASH, WALLET, MOMO, PAYOS }
 
     // Ghi chú thêm
     private String notes;
@@ -68,6 +72,10 @@ public class Invoice {
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<PaymentTransaction> transactions = new ArrayList<>();
+
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<InvoiceDetail> invoiceDetails;
+
 
     // Tự động set ngày tạo khi lưu vào DB
     @PrePersist

@@ -1,97 +1,102 @@
 package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
-import com.example.ev_rental_backend.dto.booking.BookingResponseBlacklistDTO;
-import com.example.ev_rental_backend.dto.warning.WarningRequestDTO;
-import com.example.ev_rental_backend.dto.warning.WarningResponseDTO;
-import com.example.ev_rental_backend.service.booking.BookingService;
-import com.example.ev_rental_backend.service.report.AdminReportService;
-import com.example.ev_rental_backend.service.warning.WarningService;
+import com.example.ev_rental_backend.dto.admin.AdminResponseDto;
+import com.example.ev_rental_backend.dto.admin.CreateAdminDto;
+import com.example.ev_rental_backend.dto.admin.UpdateAdminDto;
+import com.example.ev_rental_backend.service.admin.AdminService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class AdminController {
 
-    private final BookingService bookingService;
+    private final AdminService adminService;
 
-    private final AdminReportService adminReportService;
+    // ==================== 11.1. Admin Profile ====================
 
-    private final WarningService warningService;
+    /**
+     * GET /api/admin/me - Thông tin admin hiện tại
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AdminResponseDto>> getMyProfile() {
+        AdminResponseDto admin = adminService.getCurrentAdmin();
+        return ResponseEntity.ok(ApiResponse.<AdminResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(admin)
+                .build());
+    }
 
+    /**
+     * PUT /api/admin/me - Cập nhật thông tin admin
+     */
+    @PutMapping("/me")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AdminResponseDto>> updateMyProfile(
+            @Valid @RequestBody UpdateAdminDto requestDto) {
+        AdminResponseDto admin = adminService.updateCurrentAdmin(requestDto);
+        return ResponseEntity.ok(ApiResponse.<AdminResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(admin)
+                .build());
+    }
 
-    //lấy hết các booking đang có booking image có type là DAMAGED
-    @GetMapping("/reports")
-    public ResponseEntity<ApiResponse<?>> getDamageReports() {
-        var reports = bookingService.getBookingsWithDamages();
+    // ==================== 11.2. Admin Operations ====================
 
-        return ResponseEntity.ok(
-                ApiResponse.<Object>builder()
+    /**
+     * GET /api/admin - Danh sách admin
+     */
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<AdminResponseDto>>> getAllAdmins() {
+        List<AdminResponseDto> admins = adminService.getAllAdmins();
+        return ResponseEntity.ok(ApiResponse.<List<AdminResponseDto>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(admins)
+                .build());
+    }
+
+    /**
+     * POST /api/admin - Tạo admin mới
+     */
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AdminResponseDto>> createAdmin(
+            @Valid @RequestBody CreateAdminDto requestDto) {
+        AdminResponseDto admin = adminService.createAdmin(requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.<AdminResponseDto>builder()
                         .status("success")
-                        .code(200)
-                        .data(reports)
-                        .build()
-        );
+                        .code(HttpStatus.CREATED.value())
+                        .data(admin)
+                        .build());
     }
 
-    //khi nhấn vào booking đó trên list report, sẽ hiện ra booking detail
-    @GetMapping("/reports/{bookingId}")
-    public ResponseEntity<ApiResponse<?>> getBookingReportDetail(@PathVariable Long bookingId) {
-        try {
-            BookingResponseBlacklistDTO dto = adminReportService.getBookingDetailForReport(bookingId);
-
-            return ResponseEntity.ok(
-                    ApiResponse.builder()
-                            .status("success")
-                            .code(200)
-                            .data(dto)
-                            .build()
-            );
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.builder()
-                            .status("error")
-                            .code(400)
-                            .data(e.getMessage())
-                            .build()
-            );
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(
-                    ApiResponse.builder()
-                            .status("error")
-                            .code(500)
-                            .data("Lỗi hệ thống: " + e.getMessage())
-                            .build()
-            );
-        }
+    /**
+     * PUT /api/admin/{adminId} - Cập nhật admin
+     */
+    @PutMapping("/{adminId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<AdminResponseDto>> updateAdmin(
+            @PathVariable Long adminId,
+            @Valid @RequestBody UpdateAdminDto requestDto) {
+        AdminResponseDto admin = adminService.updateAdmin(adminId, requestDto);
+        return ResponseEntity.ok(ApiResponse.<AdminResponseDto>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(admin)
+                .build());
     }
-
-    @PostMapping("/warning")
-    public ResponseEntity<ApiResponse<?>> sendWarning(@RequestBody WarningRequestDTO dto) {
-        try {
-            WarningResponseDTO response = warningService.sendWarningEmail(dto);
-            return ResponseEntity.ok(
-                    ApiResponse.builder()
-                            .status("success")
-                            .code(200)
-                            .data(response)
-                            .build()
-            );
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.builder()
-                            .status("error")
-                            .code(400)
-                            .data(e.getMessage())
-                            .build()
-            );
-        }
-    }
-
-
 }
-

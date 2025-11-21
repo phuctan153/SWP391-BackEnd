@@ -1,8 +1,8 @@
 package com.example.ev_rental_backend.service.notification;
 
-import com.example.ev_rental_backend.entity.Booking;
-import com.example.ev_rental_backend.entity.Notification;
+import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.repository.NotificationRepository;
+import com.example.ev_rental_backend.repository.StaffStationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +17,8 @@ import java.util.List;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final StaffStationRepository staffStationRepository;
+
 
     @Override
     public List<Notification> getAllNotificationsForAdmin(Long adminId) {
@@ -32,7 +34,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public Notification sendNotificationToAdmin(Long adminId, String title, String message) {
+    public void sendNotificationToAdmin(Long adminId, String title, String message) {
         Notification notification = Notification.builder()
                 .recipientType(Notification.RecipientType.ADMIN)
                 .recipientId(adminId)
@@ -40,8 +42,113 @@ public class NotificationServiceImpl implements NotificationService {
                 .message(message)
                 .isRead(false)
                 .build();
-        return notificationRepository.save(notification);
+        notificationRepository.save(notification);
     }
+
+    @Override
+    public void notifyStationAdminsToCreateContract(Booking booking) {
+        if (booking.getVehicle() == null || booking.getVehicle().getStation() == null) {
+            throw new RuntimeException("Booking không chứa thông tin trạm xe hợp lệ");
+        }
+
+        Long stationId = booking.getVehicle().getStation().getStationId();
+
+        // 🧭 Lấy danh sách Staff_Admin đang hoạt động tại trạm này
+        List<StaffStation> staffAdmins = staffStationRepository
+                .findByStation_StationIdAndRoleAtStationAndStatus(
+                        stationId,
+                        StaffStation.RoleAtStation.STATION_ADMIN,
+                        StaffStation.Status.ACTIVE
+                );
+
+        if (staffAdmins.isEmpty()) {
+            System.out.printf("⚠️ Không có Staff_Admin nào đang hoạt động ở station #%d%n", stationId);
+            return;
+        }
+
+        // 🔔 Gửi thông báo
+        for (StaffStation ss : staffAdmins) {
+            sendNotificationToStaff(
+                    ss.getStaff().getStaffId(),
+                    "📄 Tạo hợp đồng cho booking #" + booking.getBookingId(),
+                    String.format(
+                            "Xe '%s' tại trạm '%s' đã được admin duyệt — vui lòng tạo hợp đồng.",
+                            booking.getVehicle().getVehicleName(),
+                            booking.getVehicle().getStation().getName()
+                    )
+            );
+        }
+
+        System.out.printf("✅ Đã gửi thông báo đến %d Staff_Admin tại station #%d%n",
+                staffAdmins.size(), stationId);
+    }
+
+    @Override
+    public void sendNotificationToStaff(Long staffId, String title, String message) {
+        Notification notification = Notification.builder()
+                .recipientType(Notification.RecipientType.STAFF)
+                .recipientId(staffId)
+                .title(title)
+                .message(message)
+                .isRead(false)
+                .build();
+
+        notificationRepository.save(notification);
+        log.info("📨 Notification sent to Staff #{}: {}", staffId, title);
+    }
+
+    /**
+     * Gửi thông báo cho tất cả STATION_ADMIN trong trạm khi có booking cần xử lý thanh toán tiền mặt
+     */
+    @Override
+    public void notifyStationAdminsForCashPayment(Booking booking) {
+        if (booking.getVehicle() == null || booking.getVehicle().getStation() == null) {
+            throw new RuntimeException("Booking không chứa thông tin trạm xe hợp lệ");
+        }
+
+        Long stationId = booking.getVehicle().getStation().getStationId();
+
+        // 🔍 Lấy danh sách STATION_ADMIN đang ACTIVE trong trạm này
+        List<StaffStation> stationAdmins = staffStationRepository
+                .findByStation_StationIdAndRoleAtStationAndStatus(
+                        stationId,
+                        StaffStation.RoleAtStation.STATION_ADMIN,
+                        StaffStation.Status.ACTIVE
+                );
+
+        if (stationAdmins.isEmpty()) {
+            log.warn("⚠️ Không có Station Admin nào đang hoạt động ở station #{}", stationId);
+            return;
+        }
+
+        String title = "💵 Thanh toán tiền mặt cần xử lý";
+        String message = String.format(
+                "Booking #%d của khách hàng %s cần được xác nhận thanh toán tiền mặt tại trạm %s.",
+                booking.getBookingId(),
+                booking.getRenter().getFullName(),
+                booking.getVehicle().getStation().getName()
+        );
+
+        // 💾 Tạo danh sách thông báo
+        List<Notification> notifications = stationAdmins.stream()
+                .map(admin -> Notification.builder()
+                        .recipientType(Notification.RecipientType.STAFF)
+                        .recipientId(admin.getStaff().getStaffId())
+                        .title(title)
+                        .message(message)
+                        .isRead(false)
+                        .build())
+                .toList();
+
+        // 💾 Lưu toàn bộ thông báo vào DB một lần (hiệu suất cao, đảm bảo transactional)
+        notificationRepository.saveAll(notifications);
+
+        // 🪵 Ghi log chi tiết
+        log.info("✅ Đã lưu {} thông báo 'Thanh toán tiền mặt' cho Station Admin tại station #{}",
+                notifications.size(), stationId);
+    }
+
+
 
     /**
      * Gửi thông báo nhắc nhở nhận xe (BR-20)
@@ -179,4 +286,49 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.save(notification);
         log.info("New booking notification sent to staff {}", staffId);
     }
+
+    @Override
+    public void notifyAllStaffInStation(Station station, Booking booking) {
+        // 🔹 Lấy danh sách nhân viên ACTIVE trong trạm
+        List<StaffStation> staffStations =
+                staffStationRepository.findByStationAndStatus(station, StaffStation.Status.ACTIVE);
+
+        if (staffStations.isEmpty()) {
+            log.warn("⚠️ Không có nhân viên ACTIVE nào trong trạm {}", station.getName());
+            return;
+        }
+
+        // 🔹 Gửi thông báo đến từng nhân viên
+        for (StaffStation ss : staffStations) {
+            Staff staff = ss.getStaff(); // Lấy thông tin nhân viên thực tế
+
+            String message = String.format(
+                    "🔔 Khách hàng %s vừa gửi yêu cầu trả xe %s tại trạm %s.",
+                    booking.getRenter().getFullName(),
+                    booking.getVehicle().getVehicleName(),
+                    station.getName()
+            );
+
+            // 💾 Lưu thông báo vào DB
+            Notification notification = Notification.builder()
+                    .title("🚘 Yêu cầu trả xe mới")
+                    .message(message)
+                    .recipientType(Notification.RecipientType.STAFF)
+                    .recipientId(staff.getStaffId())
+                    .isRead(false)
+                    .build();
+
+            notificationRepository.save(notification);
+
+            // 💬 Log để theo dõi trong console
+            log.info("📩 Đã gửi thông báo đến Staff [{} - {}]: {}",
+                    staff.getStaffId(),
+                    staff.getFullName(),
+                    message);
+        }
+
+        log.info("✅ Đã gửi thông báo trả xe đến toàn bộ nhân viên ACTIVE của trạm {}", station.getName());
+    }
+
+
 }

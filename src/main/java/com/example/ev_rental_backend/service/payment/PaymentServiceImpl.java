@@ -144,6 +144,8 @@ public class PaymentServiceImpl implements PaymentService {
         finalInvoice.setNotes("Hoàn tiền ví: " +
                 (requestDto.getReason() != null ? requestDto.getReason() : "Hoàn phần dư cọc"));
         finalInvoice.setStatus(Invoice.Status.PAID);
+        finalInvoice.setPaymentMethod(Invoice.PaymentMethod.WALLET);
+        finalInvoice.setCompletedAt(LocalDateTime.now());
         invoiceRepository.save(finalInvoice);
 
         // 6️⃣ Tạo transaction gắn với FINAL invoice

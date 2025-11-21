@@ -41,6 +41,7 @@ public class BookingServiceImpl implements BookingService {
 
     private final RenterRepository renterRepository;
     private final VehicleRepository vehicleRepository;
+    private final PolicyRepository policyRepository;
     private final StaffRepository staffRepository;
     private final BookingImageRepository bookingImageRepository;
     private final BookingRatingRepository bookingRatingRepository;
@@ -309,7 +310,7 @@ public class BookingServiceImpl implements BookingService {
         // 🔹 4. BR-05: Kiểm tra thời gian hợp lệ
         validator.validateBookingTime(requestDto.getStartDateTime(), requestDto.getEndDateTime());
 
-        // 🔹 5. BR-22: Kiểm tra đặt trước trong khoảng 7–14 ngày
+        // 🔹 5. BR-22: Kiểm tra đặt trước
         validator.validateAdvanceBookingTime(requestDto.getStartDateTime());
 
         // 🔹 6. BR-07: Kiểm tra xe có khả dụng (bao gồm thời gian giữ xe)
@@ -336,16 +337,17 @@ public class BookingServiceImpl implements BookingService {
                 .status(Booking.Status.PENDING)
                 .depositStatus(Booking.DepositStatus.PENDING)
                 .build();
+        List<Policy> policyList = policyRepository.findByPolicyType(Policy.PolicyType.MAX_HOLD_BEFORE_START);
+        Policy expiredTimePolicy = policyList.getFirst();
+        double expireTime = expiredTimePolicy.getValue();
+        long hours = (long) expireTime;
+        long minutes = Math.round((expireTime - hours) * 60);
 
         // 🔹 9. Set thời gian hết hạn (1h sau startTime)
-        booking.setExpiresAt(requestDto.getStartDateTime().plusHours(1));
+        booking.setExpiresAt(requestDto.getStartDateTime().plusHours(hours).plusMinutes(minutes));
 
         // 🔹 10. Lưu booking vào DB
         Booking savedBooking = bookingRepository.save(booking);
-
-        // 🔹 (Tuỳ chọn) Nếu bạn muốn set xe sang trạng thái RESERVED ngay khi booking pending:
-        // vehicle.setStatus(Vehicle.Status.RESERVED);
-        // vehicleRepository.save(vehicle);
 
         log.info("✅ Booking {} created for renter {} and vehicle {}",
                 savedBooking.getBookingId(), renter.getRenterId(), vehicle.getVehicleId());

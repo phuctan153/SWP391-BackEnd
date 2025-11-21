@@ -65,24 +65,69 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         invoice.setStatus(Invoice.Status.PAID);
         invoice.setCompletedAt(LocalDateTime.now());
+
+        Booking booking = invoice.getBooking();
+        if (invoice.getType() == Invoice.Type.DEPOSIT) {
+            booking.setDepositStatus(Booking.DepositStatus.PAID);
+        }
+
+        bookingRepository.save(booking);
         invoiceRepository.save(invoice);
 
-        log.warn("Invoice {} has been manually marked as PAID by ADMIN", invoiceId);
+        return mapToDto(invoice);
+    }
 
-        // ⭐ Manual mapping
+    private InvoiceResponseDto mapToDto(Invoice invoice) {
+        if (invoice == null) return null;
+
         InvoiceResponseDto dto = new InvoiceResponseDto();
+
         dto.setInvoiceId(invoice.getInvoiceId());
-        dto.setBookingId(invoice.getBooking().getBookingId());
         dto.setType(invoice.getType());
-        dto.setStatus(invoice.getStatus());
-        dto.setTotalAmount(invoice.getTotalAmount());
         dto.setDepositAmount(invoice.getDepositAmount());
+        dto.setTotalAmount(invoice.getTotalAmount());
         dto.setRefundAmount(invoice.getRefundAmount());
+        dto.setStatus(invoice.getStatus());
+        dto.setPaymentMethod(invoice.getPaymentMethod());
+        dto.setNotes(invoice.getNotes());
         dto.setCreatedAt(invoice.getCreatedAt());
         dto.setCompletedAt(invoice.getCompletedAt());
 
+        // 🔗 Booking ID
+        if (invoice.getBooking() != null) {
+            dto.setBookingId(invoice.getBooking().getBookingId());
+        }
+
+        // 💰 Amount Remaining = total - deposit - refund
+        double deposit = invoice.getDepositAmount() != null ? invoice.getDepositAmount() : 0.0;
+        double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+        double refund = invoice.getRefundAmount() != null ? invoice.getRefundAmount() : 0.0;
+
+        dto.setAmountRemaining(total - deposit - refund);
+
+        // 🧾 Invoice Details
+        if (invoice.getInvoiceDetails() != null && !invoice.getInvoiceDetails().isEmpty()) {
+            dto.setDetails(
+                    invoice.getInvoiceDetails().stream()
+                            .map(detail -> InvoiceDetailResponseDto.builder()
+                                    .invoiceDetailId(detail.getInvoiceDetailId())
+                                    .description(detail.getDescription())
+                                    .unitPrice(detail.getUnitPrice())
+                                    .quantity(detail.getQuantity())
+                                    .lineTotal(detail.getLineTotal())
+                                    .type(detail.getType())
+                                    .priceListId(detail.getPriceList() != null ? detail.getPriceList().getPriceId() : null)
+                                    .build()
+                            )
+                            .toList()
+            );
+        } else {
+            dto.setDetails(List.of()); // tránh null
+        }
+
         return dto;
     }
+
 
 
 
@@ -165,10 +210,10 @@ public class InvoiceServiceImpl implements InvoiceService {
         boolean hasFinalInvoice = booking.getInvoices().stream()
                 .anyMatch(inv -> inv.getType() == Invoice.Type.FINAL);
         if (hasFinalInvoice) {
-            throw new CustomException("Đơn đặt xe này đã có hóa đơn cuối", HttpStatus.BAD_REQUEST);
+            throw new CustomException("Đơn đặt xe này đã có hóa đơn", HttpStatus.BAD_REQUEST);
         }
 
-        Double depositAmount = booking.getInvoices().stream()
+        double depositAmount = booking.getInvoices().stream()
                 .filter(inv -> inv.getType() == Invoice.Type.DEPOSIT && inv.getStatus() == Invoice.Status.PAID)
                 .findFirst()
                 .map(Invoice::getDepositAmount)
@@ -212,19 +257,20 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
 
         // 3️⃣ Chi phí hư hại
-        double damageCost = getDamageCost(booking);
+//        double damageCost = getDamageCost(booking);
 
         // 4️⃣ Tổng tiền cuối cùng
-        double totalAmount = rentalCost + lateFee + damageCost;
+        double totalAmount = rentalCost + lateFee;
 
         double refundAmount = 0.0;
-        double amountRemaining = 0.0;
+//        double amountRemaining = 0.0;
 
         if (depositAmount > totalAmount) {
             refundAmount = depositAmount - totalAmount;
-        } else {
-            amountRemaining = totalAmount - depositAmount;
         }
+//        } else {
+//            amountRemaining = totalAmount - depositAmount;
+//        }
 
         // 🧾 Tạo hóa đơn FINAL
         Invoice invoice = Invoice.builder()

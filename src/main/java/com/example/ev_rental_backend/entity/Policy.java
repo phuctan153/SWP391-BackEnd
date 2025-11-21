@@ -72,7 +72,8 @@ public class Policy {
         DEPOSIT_AMOUNT,        // tiền cọc
         RENTAL_TIME_THRESHOLD_HOURS,
         VEHICLE_HOLD_DAYS_AFTER_BOOKING,
-        MAX_RENTAL_DAYS
+        MAX_RENTAL_DAYS,
+        MAX_HOLD_BEFORE_START
     }
 
     // 🔹 ENUM: phạm vi áp dụng

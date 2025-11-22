@@ -122,7 +122,7 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy booking ID: " + bookingId));
 
         try {
-            log.info("🟢 Bắt đầu gửi mail hủy booking ID {}", bookingId);
+            log.info("Bắt đầu gửi mail hủy booking ID {}", bookingId);
 
             String renterEmail = booking.getRenter().getEmail();
             String renterName = booking.getRenter().getFullName();
@@ -171,26 +171,23 @@ public class BookingServiceImpl implements BookingService {
 
             mailSender.send(message);
 
-            log.info("✅ Email hủy booking ID {} đã gửi tới {}", bookingId, renterEmail);
+            log.info("Email hủy booking ID {} đã gửi tới {}", bookingId, renterEmail);
 
         } catch (Exception e) {
-            log.error("❌ Gửi email thất bại: {}", e.getMessage(), e);
+            log.error("Gửi email thất bại: {}", e.getMessage(), e);
         }
     }
 
     @Override
     public List<BookingWithContractDTO> getBookingsWithContractsByActiveStation(Long staffId) {
-        // 1️⃣ Lấy trạm mà staff đang hoạt động
         StaffStation staffStation = staffStationRepository
                 .findFirstByStaff_StaffIdAndStatusOrderByAssignedAtDesc(staffId, StaffStation.Status.ACTIVE)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy trạm hoạt động cho staff #" + staffId));
 
         Long stationId = staffStation.getStation().getStationId();
 
-        // 2️⃣ Lấy danh sách booking tại trạm đó
         List<Booking> bookings = bookingRepository.findByVehicle_Station_StationId(stationId);
 
-        // 3️⃣ Map sang DTO có kèm thông tin hợp đồng
         return bookings.stream().map(booking -> {
             Contract contract = booking.getContract(); // Quan hệ OneToOne giữa Booking – Contract
 
@@ -224,10 +221,8 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe #" + bookingId));
 
-        // ✅ Xác minh renter đang gọi đúng booking của họ
         Station station = getStation(renterEmail, booking);
 
-        // ✅ Gửi thông báo cho tất cả nhân viên của trạm
         notificationService.notifyAllStaffInStation(station, booking);
     }
 
@@ -237,7 +232,6 @@ public class BookingServiceImpl implements BookingService {
                     HttpStatus.FORBIDDEN);
         }
 
-        // ✅ Lấy trạm xe từ vehicle
         Vehicle vehicle = booking.getVehicle();
         if (vehicle == null || vehicle.getStation() == null) {
             throw new CustomException("Không xác định được trạm xe cho đơn đặt này",
@@ -246,32 +240,6 @@ public class BookingServiceImpl implements BookingService {
         return vehicle.getStation();
     }
 
-
-    @Override
-    public BookingResponseDto confirmVehicleReturn(Long bookingId, String staffEmail) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe có ID: " + bookingId));
-
-        // ✅ Kiểm tra trạng thái
-        if (booking.getStatus() != Booking.Status.IN_USE) {
-            throw new CustomException("Chỉ có thể xác nhận trả xe khi xe đang được sử dụng (IN_USE)",
-                    HttpStatus.BAD_REQUEST);
-        }
-
-        // ✅ Lấy thông tin staff đang xử lý
-        Staff staff = staffRepository.findByEmail(staffEmail)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy nhân viên với email: " + staffEmail));
-
-        // ✅ Cập nhật người xử lý và thời gian trả xe thực tế
-        booking.setStaffReturn(staff);
-        booking.setActualReturnTime(LocalDateTime.now());
-        booking.setStatus(Booking.Status.COMPLETED);
-
-        // ✅ Lưu database
-        Booking savedBooking = bookingRepository.save(booking);
-
-        return mapToBookingResponseDto(savedBooking);
-    }
 
 
     private BookingResponseDto mapToBookingResponseDto(Booking booking) {
@@ -352,7 +320,7 @@ public class BookingServiceImpl implements BookingService {
         // 🔹 10. Lưu booking vào DB
         Booking savedBooking = bookingRepository.save(booking);
 
-        log.info("✅ Booking {} created for renter {} and vehicle {}",
+        log.info("Booking {} created for renter {} and vehicle {}",
                 savedBooking.getBookingId(), renter.getRenterId(), vehicle.getVehicleId());
 
         // 🔹 11. Trả về DTO
@@ -443,7 +411,6 @@ public class BookingServiceImpl implements BookingService {
             );
         }
 
-        // Parse vehicleComponent (optional)
         BookingImage.VehicleComponent vehicleComponent = null;
         if (vehicleComponentStr != null && !vehicleComponentStr.trim().isEmpty()) {
             try {
@@ -457,7 +424,6 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // Kiểm tra trùng ảnh cùng type + component trong cùng booking
         if (bookingImageRepository.existsByBookingAndImageTypeAndVehicleComponent(booking, imageType, vehicleComponent)) {
             throw new CustomException(
                     "This booking already has an image for type: " + imageType +
@@ -505,14 +471,11 @@ public class BookingServiceImpl implements BookingService {
             String imageTypeFilter,
             String vehicleComponentFilter) {
 
-        // 1. Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Booking not found with id: " + bookingId));
 
-        // 2. Lấy danh sách ảnh gốc
         List<BookingImage> images = booking.getImages();
 
-        // 3. Filter theo imageType nếu có
         if (imageTypeFilter != null && !imageTypeFilter.trim().isEmpty()) {
             try {
                 BookingImage.ImageType filterType = BookingImage.ImageType.valueOf(imageTypeFilter.toUpperCase());
@@ -524,7 +487,6 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // 4. Filter theo vehicleComponent nếu có
         if (vehicleComponentFilter != null && !vehicleComponentFilter.trim().isEmpty()) {
             try {
                 BookingImage.VehicleComponent filterComponent =
@@ -538,11 +500,10 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // 5. ✅ Map "tay" (inline) danh sách đã filter sang DTO
         return images.stream()
-                .map(image -> { // Bắt đầu map inline
+                .map(image -> {
                     if (image == null) {
-                        return null; // Trường hợp hiếm
+                        return null;
                     }
                     return BookingImageResponseDto.builder()
                             .imageId(image.getImageId())
@@ -552,7 +513,7 @@ public class BookingServiceImpl implements BookingService {
                             .vehicleComponent(image.getVehicleComponent() != null ? image.getVehicleComponent().name() : null)
                             .description(image.getDescription())
                             .createdAt(image.getCreatedAt())
-                            .confirmed(image.getConfirmed()) // <-- Map trường confirmed
+                            .confirmed(image.getConfirmed())
                             .build();
                 }) // Kết thúc map inline
                 .collect(Collectors.toList());
@@ -574,7 +535,7 @@ public class BookingServiceImpl implements BookingService {
             throw new CustomException("Image does not belong to this booking", HttpStatus.BAD_REQUEST);
         }
 
-        // ❗ Chặn xóa nếu đã confirmed
+        // Chặn xóa nếu đã confirmed
         if (Boolean.TRUE.equals(image.getConfirmed())) {
             throw new CustomException("Ảnh đã được xác nhận, không thể xóa.", HttpStatus.BAD_REQUEST);
         }
@@ -616,14 +577,14 @@ public class BookingServiceImpl implements BookingService {
 
         // Lấy các hạng mục bắt buộc phải chụp
         List<BookingImage.VehicleComponent> requiredComponents = List.of(
-                BookingImage.VehicleComponent.NAP_CAPO,        // Tương đương EXTERIOR_FRONT
-                BookingImage.VehicleComponent.COP_SAU,         // Tương đương EXTERIOR_BACK
-                BookingImage.VehicleComponent.CUA_TRAI,        // Tương đương EXTERIOR_LEFT
-                BookingImage.VehicleComponent.CUA_PHAI,        // Tương đương EXTERIOR_RIGHT
+                BookingImage.VehicleComponent.NAP_CAPO,
+                BookingImage.VehicleComponent.COP_SAU,
+                BookingImage.VehicleComponent.CUA_TRAI,
+                BookingImage.VehicleComponent.CUA_PHAI,
 
-                // 🔹 Nội thất & bảng điều khiển
-                BookingImage.VehicleComponent.TAPLO,           // Tương đương DASHBOARD
-                BookingImage.VehicleComponent.DONG_HO_KM,      // Tương đương MILEAGE_METER
+                // nội thất & bảng điều khiển
+                BookingImage.VehicleComponent.TAPLO,
+                BookingImage.VehicleComponent.DONG_HO_KM,
                 BookingImage.VehicleComponent.DONG_HO_PIN
         );
 
@@ -728,11 +689,9 @@ public class BookingServiceImpl implements BookingService {
      */
     @Transactional
     public BookingResponseDto updateStatusToInUse(Long bookingId, HttpServletRequest request) {
-        // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Booking not found"));
 
-        // 🔹 2️⃣ Lấy token và trích xuất email nhân viên
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new CustomException("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED);
@@ -741,28 +700,22 @@ public class BookingServiceImpl implements BookingService {
         String token = authHeader.substring(7);
         String email = jwtTokenUtil.extractEmail(token);
 
-        // 🔹 3️⃣ Lấy thông tin staff từ email
         Staff staff = staffRepository.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("Staff not found for email: " + email));
 
-        // 🔹 4️⃣ Kiểm tra trạng thái booking hợp lệ
         if (booking.getStatus() != Booking.Status.RESERVED) {
             throw new CustomException("Booking must be in RESERVED status to start using", HttpStatus.BAD_REQUEST);
         }
 
-        // 🔹 5️⃣ Gán staff nhận xe (staffReceive)
         booking.setStaffReceive(staff);
 
-        // 🔹 6️⃣ Cập nhật trạng thái booking sang IN_USE
         booking.setStatus(Booking.Status.IN_USE);
         booking.setUpdatedAt(LocalDateTime.now());
 
-        // 🔹 7️⃣ Lưu thay đổi
         Booking savedBooking = bookingRepository.save(booking);
 
         log.info("Booking {} set to IN_USE by staff {}", bookingId, staff.getFullName());
 
-        // 🔹 8️⃣ Trả DTO phản hồi
         return mapToResponseDto(savedBooking);
     }
 
@@ -784,48 +737,40 @@ public class BookingServiceImpl implements BookingService {
      */
     @Transactional
     public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto, HttpServletRequest request) {
-        // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe."));
 
-        // 🔹 2️⃣ Kiểm tra nếu đã có thời gian trả xe (đã xử lý trước đó)
         if (booking.getActualReturnTime() != null) {
             Staff existingStaff = booking.getStaffReturn();
             String staffName = (existingStaff != null) ? existingStaff.getFullName() : "Không xác định";
             return ReturnResponseDto.builder()
                     .bookingId(bookingId)
                     .actualReturnTime(booking.getActualReturnTime())
-                    .message("⚠️ Xe đã được trả trước đó bởi " + staffName
+                    .message("Xe đã được trả trước đó bởi " + staffName
                             + " vào lúc " + booking.getActualReturnTime())
                     .build();
         }
 
-        // 🔹 3️⃣ Kiểm tra trạng thái booking
         if (booking.getStatus() != Booking.Status.IN_USE) {
             throw new CustomException("Chỉ có thể trả xe khi đơn đang ở trạng thái 'Đang sử dụng'.",
                     HttpStatus.BAD_REQUEST);
         }
 
-        // 🔹 4️⃣ Lấy token từ header và extract email
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new CustomException("Thiếu hoặc sai định dạng Authorization header.", HttpStatus.UNAUTHORIZED);
         }
 
         String token = authHeader.substring(7);
-        String email = jwtTokenUtil.extractEmail(token); // ✅ sử dụng util sẵn có
+        String email = jwtTokenUtil.extractEmail(token);
 
-        // 🔹 5️⃣ Tìm Staff theo email
         Staff staff = staffRepository.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy thông tin nhân viên có email: " + email));
 
-        // 🔹 6️⃣ Gán staffReturn = nhân viên hiện tại
         booking.setStaffReturn(staff);
 
-        // 🔹 7️⃣ Ghi nhận thời gian trả xe
         booking.setActualReturnTime(LocalDateTime.now());
 
-        // 🔹 8️⃣ Cập nhật tình trạng xe
         Vehicle vehicle = booking.getVehicle();
         vehicle.setBatteryLevel(requestDto.getBatteryLevel());
         vehicle.setMileage(requestDto.getMileage());
@@ -833,16 +778,10 @@ public class BookingServiceImpl implements BookingService {
         boolean hasDamage = Boolean.TRUE.equals(requestDto.getHasDamage());
         vehicle.setStatus(hasDamage ? Vehicle.Status.IN_REPAIR : Vehicle.Status.AVAILABLE);
 
-        // 🔹 9️⃣ Cập nhật trạng thái booking
-//        booking.setStatus(Booking.Status.COMPLETED);
-
-        // 🔹 🔟 Lưu dữ liệu
         bookingRepository.save(booking);
         vehicleRepository.save(vehicle);
 
-        log.info("✅ Xe thuộc đơn {} đã được nhân viên {} xác nhận trả.", bookingId, staff.getFullName());
-
-        // 🔹 11️⃣ Trả response
+        log.info("Xe thuộc đơn {} đã được nhân viên {} xác nhận trả.", bookingId, staff.getFullName());
         return ReturnResponseDto.builder()
                 .bookingId(bookingId)
                 .actualReturnTime(booking.getActualReturnTime())
@@ -998,11 +937,9 @@ public class BookingServiceImpl implements BookingService {
                 .vehicleId(booking.getVehicle().getVehicleId())
                 .vehicleName(booking.getVehicle().getVehicleName())
 
-                // ✅ Gán nhân viên bàn giao xe
                 .staffReceiveId(booking.getStaffReceive() != null ? booking.getStaffReceive().getStaffId() : null)
                 .staffReceiveName(booking.getStaffReceive() != null ? booking.getStaffReceive().getFullName() : null)
 
-                // ✅ Gán nhân viên nhận xe khi trả
                 .staffReturnId(booking.getStaffReturn() != null ? booking.getStaffReturn().getStaffId() : null)
                 .staffReturnName(booking.getStaffReturn() != null ? booking.getStaffReturn().getFullName() : null)
 
@@ -1017,7 +954,6 @@ public class BookingServiceImpl implements BookingService {
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
 
-                // ✅ Danh sách hình ảnh
                 .bookingImages(
                         booking.getImages() != null
                                 ? booking.getImages().stream()

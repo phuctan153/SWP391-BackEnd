@@ -36,32 +36,27 @@ public class ContractServiceImpl implements ContractService{
 
     @Transactional
     public ContractResponseDTO createContract(ContractRequestDTO dto, Long staffId) {
-        // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(dto.getBookingId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + dto.getBookingId()));
 
-        // 🔹 2️⃣ Kiểm tra trạng thái booking
         if (booking.getStatus() != Booking.Status.RESERVED)
             throw new RuntimeException("Booking không hợp lệ để tạo hợp đồng");
 
-        // 🔹 3️⃣ Lấy staff từ DB
+
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên #" + staffId));
 
-//        bookingRepository.saveAndFlush(booking);
 
-        // 🔹 5️⃣ Tạo hợp đồng
         Contract contract = Contract.builder()
                 .booking(booking)
                 .contractType(Contract.ContractType.valueOf(dto.getContractType().toUpperCase()))
                 .contractDate(LocalDateTime.now())
                 .status(Contract.Status.PENDING_ADMIN_SIGNATURE)
-                .createdByStaff(staff) // ✅ Gán nhân viên tạo hợp đồng
+                .createdByStaff(staff)
                 .build();
 
         contractRepository.save(contract);
 
-        // 🔹 6️⃣ Lưu các điều khoản hợp đồng
         for (ContractRequestDTO.TermConditionDTO t : dto.getTerms()) {
             termConditionRepository.save(
                     TermCondition.builder()
@@ -73,16 +68,13 @@ public class ContractServiceImpl implements ContractService{
             );
         }
 
-        // 🔹 7️⃣ Sinh file PDF và lưu URL
         String fileUrl = pdfGeneratorService.generateContractFile(contract);
         contract.setContractFileUrl(fileUrl);
         contractRepository.save(contract);
 
-        // 🔹 8️⃣ Gắn lại contract vào booking
         booking.setContract(contract);
         bookingRepository.save(booking);
 
-        // 🔹 9️⃣ Trả response có thông tin nhân viên tạo hợp đồng
         return mapToResponse(contract);
     }
 
@@ -166,9 +158,8 @@ public class ContractServiceImpl implements ContractService{
                     .map(contract -> {
                         var booking = contract.getBooking();
                         var renter = booking.getRenter();
-                        var staffCreator = contract.getCreatedByStaff(); // ✅ nhân viên tạo hợp đồng
+                        var staffCreator = contract.getCreatedByStaff();
 
-                        // 🧠 Lấy tên renter ưu tiên theo giấy tờ đã xác minh (CCCD > GPLX > fullName)
                         String renterFullName = renter.getIdentityDocuments().stream()
                                 .filter(doc -> doc.getStatus() == IdentityDocument.DocumentStatus.VERIFIED)
                                 .filter(doc -> doc.getType() == IdentityDocument.DocumentType.NATIONAL_ID)
@@ -183,7 +174,7 @@ public class ContractServiceImpl implements ContractService{
                                                 .orElse(renter.getFullName())
                                 );
 
-                        // 🧱 Trả DTO phản hồi
+
                         return BookingContractInfoDTO.builder()
                                 .bookingId(booking.getBookingId())
                                 .vehicleName(booking.getVehicle().getVehicleName())
@@ -192,7 +183,7 @@ public class ContractServiceImpl implements ContractService{
                                 .renterEmail(renter.getEmail())
                                 .renterPhone(renter.getPhoneNumber())
 
-                                // ✅ Hiển thị nhân viên tạo hợp đồng
+
                                 .staffName(staffCreator != null ? staffCreator.getFullName() : null)
 
                                 .startDateTime(booking.getStartDateTime())
@@ -225,9 +216,6 @@ public class ContractServiceImpl implements ContractService{
         OtpVerification otp = OtpVerification.builder()
                 .contract(contract)
                 .otpCode(otpCode)
-//                .createdAt(LocalDateTime.now())
-//                .expiredAt(LocalDateTime.now().plusMinutes(5))
-//                .status(OtpVerification.Status.PENDING)
                 .attemptCount(0)
                 .build();
 
@@ -265,7 +253,6 @@ public class ContractServiceImpl implements ContractService{
         Contract contract = contractRepository.findById(dto.getContractId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hợp đồng #" + dto.getContractId()));
 
-        // 🔐 Kiểm tra OTP
         OtpVerification otp = otpVerificationRepository
                 .findTopByContractOrderByCreatedAtDesc(contract)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
@@ -282,12 +269,10 @@ public class ContractServiceImpl implements ContractService{
             throw new RuntimeException("Mã OTP đã hết hạn.");
         }
 
-        // ✅ Đánh dấu OTP hợp lệ
         otp.setStatus(OtpVerification.Status.VERIFIED);
         otp.setVerifiedAt(LocalDateTime.now());
         otpVerificationRepository.save(otp);
 
-        // ✅ Xử lý ký duyệt
         Booking booking = contract.getBooking();
         Renter renter = booking.getRenter();
 
@@ -296,14 +281,14 @@ public class ContractServiceImpl implements ContractService{
             contract.setAdmin(admin);
             contract.setAdminSignedAt(LocalDateTime.now());
 
-            // 🧩 Regenerate file PDF mới (cập nhật trạng thái ADMIN_SIGNED)
+
             String newFileUrl = pdfGeneratorService.generateContractFile(contract);
             contract.setContractFileUrl(newFileUrl);
 
-            // 💾 Lưu sau khi có file
+
             contractRepository.save(contract);
 
-            // 📧 Thông báo cho renter
+
             sendEmail(
                     renter.getEmail(),
                     "✅ Booking của bạn đã sẵn sàng để nhận xe và ký hợp đồng",
@@ -330,7 +315,6 @@ public class ContractServiceImpl implements ContractService{
 
 
         } else {
-            // ❌ Trường hợp bị từ chối
             contract.setStatus(Contract.Status.CANCELLED);
             booking.setStatus(Booking.Status.CANCELLED);
             bookingRepository.save(booking);
@@ -368,10 +352,8 @@ public class ContractServiceImpl implements ContractService{
 
         Renter renter = contract.getBooking().getRenter();
 
-        // 🔢 Tạo mã OTP ngẫu nhiên
         String otpCode = String.format("%06d", new Random().nextInt(999999));
 
-        // 💾 Lưu OTP
         OtpVerification otp = OtpVerification.builder()
                 .contract(contract)
                 .otpCode(otpCode)
@@ -382,7 +364,6 @@ public class ContractServiceImpl implements ContractService{
                 .build();
         otpVerificationRepository.save(otp);
 
-        // ✉️ Gửi email OTP
         sendEmail(renter.getEmail(),
                 "🔐 Mã OTP ký hợp đồng",
                 """
@@ -406,7 +387,6 @@ public class ContractServiceImpl implements ContractService{
 
         Booking booking = contract.getBooking();
 
-        // 🔒 Kiểm tra quyền: renter này có phải người sở hữu booking không
         if (!booking.getRenter().getRenterId().equals(renterId)) {
             throw new RuntimeException("Bạn không có quyền ký hợp đồng này.");
         }
@@ -415,35 +395,29 @@ public class ContractServiceImpl implements ContractService{
             throw new RuntimeException("Hợp đồng chưa được quản trị viên ký duyệt.");
         }
 
-        // 🔍 Lấy OTP mới nhất
         Optional<OtpVerification> otpOpt = otpVerificationRepository.findTopByContractOrderByCreatedAtDesc(contract);
         OtpVerification otp = otpOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy mã OTP."));
 
-        // ⏰ Kiểm tra hết hạn
         if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
             otp.setStatus(OtpVerification.Status.FAILED);
             otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP đã hết hạn.");
         }
 
-        // ❌ Sai mã OTP
         if (!otp.getOtpCode().equals(otpCode)) {
             otp.setAttemptCount(otp.getAttemptCount() + 1);
             otpVerificationRepository.save(otp);
             throw new RuntimeException("Mã OTP không đúng.");
         }
 
-        // ✅ OTP hợp lệ
         otp.setVerifiedAt(LocalDateTime.now());
         otp.setStatus(OtpVerification.Status.VERIFIED);
         otpVerificationRepository.save(otp);
 
-        // 📝 Cập nhật hợp đồng
         contract.setStatus(Contract.Status.FULLY_SIGNED);
         contract.setRenterSignedAt(LocalDateTime.now());
         contractRepository.save(contract);
 
-        // 🧩 Regenerate lại PDF (FULLY_SIGNED)
         String newFileUrl = pdfGeneratorService.generateContractFile(contract);
         contract.setContractFileUrl(newFileUrl);
         contractRepository.save(contract);
@@ -451,7 +425,6 @@ public class ContractServiceImpl implements ContractService{
 
         Renter renter = booking.getRenter();
 
-        // 📧 Gửi email xác nhận
         sendEmail(
                 renter.getEmail(),
                 "✅ Hợp đồng đã được ký thành công",
@@ -473,7 +446,6 @@ public class ContractServiceImpl implements ContractService{
         Contract contract = contractRepository.findByBooking_BookingId(bookingId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy hợp đồng cho booking này."));
 
-        // 🆕 Lấy thông tin liên quan
         Staff staffCreator = contract.getCreatedByStaff();
         Admin admin = contract.getAdmin();
         Renter renter = contract.getBooking().getRenter();
@@ -490,7 +462,6 @@ public class ContractServiceImpl implements ContractService{
                 .adminName(admin != null ? admin.getFullName() : null)
                 .renterName(renter != null ? renter.getFullName() : null)
 
-                // 🧩 Bổ sung 2 dòng quan trọng để staff tạo hợp đồng có thể xem được
                 .createdByStaffId(staffCreator != null ? staffCreator.getStaffId() : null)
                 .createdByStaffName(staffCreator != null ? staffCreator.getFullName() : null)
 
@@ -514,7 +485,6 @@ public class ContractServiceImpl implements ContractService{
         Staff creator = contract.getCreatedByStaff();
         Admin admin = contract.getAdmin();
 
-        // 🟢 Map thủ công đầy đủ để controller có đủ dữ liệu kiểm tra quyền
         ContractResponseDTO dto = ContractResponseDTO.builder()
                 .contractId(contract.getContractId())
                 .bookingId(booking != null ? booking.getBookingId() : null)
@@ -535,18 +505,15 @@ public class ContractServiceImpl implements ContractService{
                         .toList())
                 .build();
 
-        // 👷 Nhân viên tạo hợp đồng
         if (creator != null) {
             dto.setCreatedByStaffId(creator.getStaffId());
             dto.setCreatedByStaffName(creator.getFullName());
         }
 
-        // 👤 Renter
         if (booking != null && booking.getRenter() != null) {
             dto.setRenterName(booking.getRenter().getFullName());
         }
 
-        // 🧑‍💼 Admin
         if (admin != null) {
             dto.setAdminName(admin.getFullName());
         }

@@ -68,7 +68,7 @@ public class DispatchServiceImpl implements  DispatchService{
 
         // 🔹 4. Tạo Notification gửi đến nhân viên
         Notification noti = Notification.builder()
-                .title("📢 Điều phối công tác")
+                .title("Điều phối công tác")
                 .message("Bạn đã được điều phối đến trạm " + targetStation.getName() + ". Vui lòng chuẩn bị nhận nhiệm vụ mới.")
                 .recipientType(Notification.RecipientType.STAFF)
                 .recipientId(staff.getStaffId())

@@ -63,35 +63,6 @@ public class BookingImage {
         OTHER            // Khác
     }
 
-    // 🔧 Hạng mục kiểm tra xe
-//    public enum VehicleComponent {
-//        EXTERIOR_FRONT,      // Ngoại thất phía trước
-//        EXTERIOR_BACK,       // Ngoại thất phía sau
-//        EXTERIOR_LEFT,       // Ngoại thất bên trái
-//        EXTERIOR_RIGHT,      // Ngoại thất bên phải
-//        STEERING_WHEEL,      // Vô lăng
-//        DASHBOARD,           // Bảng điều khiển
-//        SEATS,               // Ghế ngồi
-//        TIRE_FRONT_LEFT,     // Bánh trước trái
-//        TIRE_FRONT_RIGHT,    // Bánh trước phải
-//        TIRE_REAR_LEFT,      // Bánh sau trái
-//        TIRE_REAR_RIGHT,     // Bánh sau phải
-//        HEADLIGHT_LEFT,      // Đèn pha trái
-//        HEADLIGHT_RIGHT,     // Đèn pha phải
-//        TAILLIGHT_LEFT,      // Đèn hậu trái
-//        TAILLIGHT_RIGHT,     // Đèn hậu phải
-//        MIRROR_LEFT,         // Gương chiếu hậu trái
-//        MIRROR_RIGHT,        // Gương chiếu hậu phải
-//        WINDSHIELD,          // Kính chắn gió
-//        REAR_WINDOW,         // Kính sau
-//        TRUNK,               // Cốp xe
-//        HOOD,                // Nắp capô
-//        CHARGING_PORT,       // Cổng sạc
-//        INTERIOR_GENERAL,    // Nội thất tổng quan
-//        MILEAGE_METER,       // Đồng hồ km
-//        BATTERY_INDICATOR,   // Chỉ số pin
-//        OTHER                // Khác
-//    }
     public enum VehicleComponent {
         // 🔹 Hệ thống chiếu sáng
         DEN_PHA_TRUOC,

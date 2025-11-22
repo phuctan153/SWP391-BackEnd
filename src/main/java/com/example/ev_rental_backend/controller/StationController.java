@@ -59,7 +59,7 @@ public class StationController {
     }
 
     /**
-     * 📦 Lấy tất cả xe thuộc 1 trạm
+     * Lấy tất cả xe thuộc 1 trạm
      * Ví dụ: GET /api/stations/1/vehicles
      */
     @GetMapping("/{stationId}/vehicles")
@@ -94,7 +94,7 @@ public class StationController {
         return ResponseEntity.ok(response);
     }
 
-    //API tạo mới trạm
+    // API tạo mới trạm
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create")
     public ResponseEntity<ApiResponse<CreateStationResponseDTO>> createStation(
@@ -112,7 +112,7 @@ public class StationController {
     }
 
     /**
-     * ✏️ Cập nhật trạm — chỉ Admin được phép
+     * Cập nhật trạm — chỉ Admin được phép
      * Ví dụ: PUT /api/stations/5
      */
     @PreAuthorize("hasRole('ADMIN')")
@@ -133,7 +133,7 @@ public class StationController {
     }
 
     /**
-     * 🗑️ Xóa (vô hiệu hóa) trạm — chỉ Admin được phép
+     * Xóa (vô hiệu hóa) trạm — chỉ Admin được phép
      * Ví dụ: DELETE /api/stations/5
      */
     @PreAuthorize("hasRole('ADMIN')")

@@ -60,7 +60,7 @@ public class RegisterController {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
 
         } catch (RuntimeException ex) {
-            // ❗ Bắt các lỗi do logic (email, phone trùng)
+            // Bắt các lỗi do logic (email, phone trùng)
             ApiResponse<String> errorResponse = ApiResponse.<String>builder()
                     .status("error")
                     .code(HttpStatus.BAD_REQUEST.value())
@@ -70,7 +70,7 @@ public class RegisterController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 
         } catch (Exception ex) {
-            // ❗ Bắt các lỗi bất ngờ khác (DB, server, mapping,...)
+            // Bắt các lỗi bất ngờ khác (DB, server, mapping,...)
             ApiResponse<String> errorResponse = ApiResponse.<String>builder()
                     .status("error")
                     .code(HttpStatus.INTERNAL_SERVER_ERROR.value())

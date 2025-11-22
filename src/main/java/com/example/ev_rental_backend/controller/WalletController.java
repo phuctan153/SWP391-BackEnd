@@ -28,7 +28,7 @@ public class WalletController {
     private final WalletService walletService;
     private final WalletMapper walletMapper;
 
-    // 🟢 ADMIN xem tất cả ví
+    // ADMIN xem tất cả ví
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<WalletResponseDTO>>> getAllWallets() {
@@ -43,7 +43,7 @@ public class WalletController {
                 .build());
     }
 
-    // 🟢 Xem chi tiết ví
+    // Xem chi tiết ví
     @PreAuthorize("hasAnyRole('ADMIN','RENTER')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<WalletResponseDTO>> getWalletById(
@@ -75,7 +75,7 @@ public class WalletController {
                 .build());
     }
 
-    // 🟡 Tạo ví (ADMIN)
+    // Tạo ví (ADMIN)
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create/{renterId}")
     public ResponseEntity<ApiResponse<WalletResponseDTO>> createWallet(@PathVariable Long renterId) {
@@ -90,7 +90,7 @@ public class WalletController {
                 .build());
     }
 
-    // 🟠 Nạp / Rút tiền — renter chỉ được thao tác ví của chính mình
+    // Nạp / Rút tiền — renter chỉ được thao tác ví của chính mình
     @PreAuthorize("hasAnyRole('ADMIN','RENTER')")
     @PutMapping("/{id}/update-balance")
     public ResponseEntity<ApiResponse<WalletResponseDTO>> updateBalance(
@@ -126,7 +126,7 @@ public class WalletController {
                 .build());
     }
 
-    // 🔵 ADMIN có thể kích hoạt / vô hiệu / khôi phục ví
+    // ADMIN có thể kích hoạt / vô hiệu / khôi phục ví
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/activate")
     public ResponseEntity<ApiResponse<WalletResponseDTO>> activateWallet(@PathVariable Long id) {
@@ -154,7 +154,7 @@ public class WalletController {
                 .status("success").code(HttpStatus.OK.value()).data(dto).message("Đã khôi phục ví #" + id).build());
     }
 
-    // 🧾 Lịch sử giao dịch — renter chỉ xem ví của chính mình
+    // Lịch sử giao dịch — renter chỉ xem ví của chính mình
     @PreAuthorize("hasAnyRole('ADMIN','RENTER')")
     @GetMapping("/{id}/transactions")
     public ResponseEntity<ApiResponse<List<PaymentTransactionResponseDto>>> getTransactions(
@@ -188,7 +188,7 @@ public class WalletController {
                 .build());
     }
 
-    // 💰 Hoàn tiền (ADMIN)
+    // Hoàn tiền (ADMIN)
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/refund/admin-cancel/{bookingId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> refundDepositByBooking(@PathVariable Long bookingId) {

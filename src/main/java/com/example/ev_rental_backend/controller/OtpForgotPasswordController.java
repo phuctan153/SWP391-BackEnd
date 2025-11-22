@@ -20,7 +20,7 @@ public class OtpForgotPasswordController {
 
     private final OtpForgotPasswordService otpForgotPasswordService;
 
-    // ✅ Bước 1: Gửi OTP đến email người dùng
+    // Bước 1: Gửi OTP đến email người dùng
     @PostMapping("/send")
     public ResponseEntity<ApiResponse<?>> sendForgotPasswordOtp(@RequestBody @Valid ForgotPasswordRequestDTO dto) {
         try {
@@ -47,7 +47,7 @@ public class OtpForgotPasswordController {
         }
     }
 
-    // ✅ Bước 2: Xác thực OTP và đổi mật khẩu
+    // Bước 2: Xác thực OTP và đổi mật khẩu
     @PostMapping("/verify-reset")
     public ResponseEntity<ApiResponse<?>> verifyOtpAndResetPassword(@RequestBody @Valid ResetPasswordWithOtpDTO dto) {
         try {

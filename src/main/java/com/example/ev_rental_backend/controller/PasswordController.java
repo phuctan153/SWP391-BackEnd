@@ -23,14 +23,14 @@ public class PasswordController {
             @RequestBody UpdatePasswordRequest request) {
 
         try {
-            // 1️⃣ Lấy token
+            // Lấy token
             String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
 
-            // 2️⃣ Lấy userId & role từ JWT
+            // Lấy userId & role từ JWT
             Long userId = jwtTokenUtil.extractUserId(token);
             String role = jwtTokenUtil.extractRole(token);
 
-            // 3️⃣ Gọi service
+            // Gọi service
             passwordUpdateService.updatePassword(userId, role, request);
 
             return ResponseEntity.ok(

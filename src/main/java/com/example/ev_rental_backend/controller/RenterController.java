@@ -64,7 +64,7 @@ public class RenterController {
                 responseDTO.setWalletId(renter.getWallet().getWalletId());
             }
 
-            // ✅ Lấy CCCD và GPLX của renter
+            // Lấy CCCD và GPLX của renter
             List<IdentityDocument> docs = identityDocumentRepository.findByRenter(renter);
             for (IdentityDocument doc : docs) {
                 RenterResponseDTO.IdentityDocDTO docDTO = RenterResponseDTO.IdentityDocDTO.builder()
@@ -107,17 +107,17 @@ public class RenterController {
     @PostMapping("/verify-kyc")
     public ResponseEntity<ApiResponse<?>> verifyKyc(@RequestBody @Valid KycVerificationDTO dto) {
         try {
-            // 🔹 1. Gọi service xử lý xác thực KYC
+            // 1. Gọi service xử lý xác thực KYC
             Renter verified = renterService.verifyKyc(dto);
 
-            // 🔹 2. Chuyển entity sang DTO (để tránh leak dữ liệu)
+            // 2. Chuyển entity sang DTO (để tránh leak dữ liệu)
             RenterResponseDTO renterDto = renterService.toResponseDto(verified);
 
-            // 🔹 3. Bổ sung thông tin trạng thái KYC
+            // 3. Bổ sung thông tin trạng thái KYC
             String kycStatus = renterService.getKycStatusForRenter(verified);
             renterDto.setKycStatus(kycStatus);
 
-            // 🔹 4. Trả về phản hồi dạng chuẩn
+            // 4. Trả về phản hồi dạng chuẩn
             return ResponseEntity.ok(
                     ApiResponse.<RenterResponseDTO>builder()
                             .status("success")

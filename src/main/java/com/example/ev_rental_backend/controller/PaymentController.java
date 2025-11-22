@@ -18,8 +18,6 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    // 7.3. Payment Processing
-
     /**
      * POST /api/payments/invoice/{invoiceId}/cash - Thanh toán bằng tiền mặt
      */

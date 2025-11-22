@@ -19,7 +19,7 @@ public class EmailChangeController {
     private final EmailChangeService emailChangeService;
     private final JwtTokenUtil jwtTokenUtil;
 
-    // 🟢 1️⃣ Gửi yêu cầu đổi email → hệ thống gửi OTP đến email mới
+    // Gửi yêu cầu đổi email → hệ thống gửi OTP đến email mới
     @PostMapping("/request-email-change")
     public ResponseEntity<ApiResponse<?>> requestEmailChange(
             @RequestHeader("Authorization") String authHeader,
@@ -46,7 +46,7 @@ public class EmailChangeController {
         }
     }
 
-    // 🟢 2️⃣ Xác nhận OTP → cập nhật email thật sự
+    // Xác nhận OTP → cập nhật email thật sự
     @PostMapping("/confirm-email-change")
     public ResponseEntity<ApiResponse<?>> confirmEmailChange(
             @RequestHeader("Authorization") String authHeader,

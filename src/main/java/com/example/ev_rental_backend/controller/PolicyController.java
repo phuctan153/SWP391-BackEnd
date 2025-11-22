@@ -21,7 +21,7 @@ public class PolicyController {
     private final PolicyService policyService;
 
     // ===========================================================
-    // 🔹 Lấy tất cả policy
+    //  Lấy tất cả policy
     // ===========================================================
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
@@ -36,7 +36,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Lấy policy theo ID
+    //  Lấy policy theo ID
     // ===========================================================
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Policy>> getPolicyById(@PathVariable Long id) {
@@ -50,7 +50,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Tạo mới policy
+    //  Tạo mới policy
     // ===========================================================
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -65,7 +65,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Cập nhật policy
+    //  Cập nhật policy
     // ===========================================================
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -83,7 +83,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Xóa mềm (INACTIVE)
+    //  Xóa mềm (INACTIVE)
     // ===========================================================
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -98,7 +98,7 @@ public class PolicyController {
     }
 
     // ===========================================================
-    // 🔹 Lấy policy active theo loại
+    //  Lấy policy active theo loại
     // ===========================================================
     @GetMapping("/active/{type}")
 //    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")

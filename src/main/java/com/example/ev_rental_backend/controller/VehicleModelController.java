@@ -22,7 +22,7 @@ public class VehicleModelController {
     private final VehicleModelService vehicleModelService;
 
     /**
-     * 📋 Lấy tất cả model xe
+     * Lấy tất cả model xe
      */
     @GetMapping
     public ResponseEntity<ApiResponse<List<VehicleModelResponseDTO>>> getAllVehicleModels() {
@@ -37,7 +37,7 @@ public class VehicleModelController {
     }
 
     /**
-     * 🔍 Lấy model theo ID
+     * Lấy model theo ID
      */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VehicleModelResponseDTO>> getVehicleModelById(@PathVariable Long id) {

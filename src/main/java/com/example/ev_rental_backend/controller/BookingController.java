@@ -134,9 +134,7 @@ public class BookingController {
     @GetMapping("/{bookingId}/confirm-cancel")
     @PreAuthorize("hasRole('RENTER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> confirmCancelBooking(@PathVariable Long bookingId) {
-        // ✅ Lấy phần trăm hoàn tiền từ policy
         double refundPercent = policyService.getPolicyValue(Policy.PolicyType.REFUND_PERCENT_RENTER);
-        // ✅ Có thể mở rộng: lấy thêm thông tin tiền cọc từ Policy hoặc PriceList
         double depositAmount = policyService.getPolicyValue(Policy.PolicyType.DEPOSIT_AMOUNT);
         Map<String, Object> data = getStringObjectMap(bookingId, depositAmount, refundPercent);
 
@@ -418,34 +416,6 @@ public class BookingController {
                 .data("Return notification sent successfully.")
                 .build());
     }
-
-
-    //staff handle cái trả xe đó
-//    @PutMapping("/{bookingId}/return")
-//    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-//    public ResponseEntity<ApiResponse<BookingResponseDto>> confirmVehicleReturn(
-//            @PathVariable Long bookingId,
-//            HttpServletRequest request) {
-//
-//        // ✅ Lấy email từ token
-//        String authHeader = request.getHeader("Authorization");
-//        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-//            throw new CustomException("Thiếu hoặc sai định dạng Authorization header", HttpStatus.UNAUTHORIZED);
-//        }
-//
-//        String token = authHeader.substring(7);
-//        String staffEmail = jwtTokenUtil.extractEmail(token);
-//
-//        // ✅ Gọi service kèm email staff
-//        BookingResponseDto updatedBooking = bookingService.confirmVehicleReturn(bookingId, staffEmail);
-//
-//        return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
-//                .status("success")
-//                .code(HttpStatus.OK.value())
-//                .message("Xác nhận trả xe thành công, thời gian trả được ghi nhận.")
-//                .data(updatedBooking)
-//                .build());
-//    }
 
 
 

@@ -225,6 +225,13 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt xe #" + bookingId));
 
         // ✅ Xác minh renter đang gọi đúng booking của họ
+        Station station = getStation(renterEmail, booking);
+
+        // ✅ Gửi thông báo cho tất cả nhân viên của trạm
+        notificationService.notifyAllStaffInStation(station, booking);
+    }
+
+    private Station getStation(String renterEmail, Booking booking) {
         if (!booking.getRenter().getEmail().equalsIgnoreCase(renterEmail)) {
             throw new CustomException("Bạn không có quyền thao tác với đơn đặt xe này",
                     HttpStatus.FORBIDDEN);
@@ -236,11 +243,7 @@ public class BookingServiceImpl implements BookingService {
             throw new CustomException("Không xác định được trạm xe cho đơn đặt này",
                     HttpStatus.BAD_REQUEST);
         }
-
-        Station station = vehicle.getStation();
-
-        // ✅ Gửi thông báo cho tất cả nhân viên của trạm
-        notificationService.notifyAllStaffInStation(station, booking);
+        return vehicle.getStation();
     }
 
 

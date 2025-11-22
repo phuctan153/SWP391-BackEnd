@@ -41,10 +41,6 @@ public class PriceList {
     @Column(name = "stock_quantity")
     private Integer stockQuantity;
 
-    // ✅ Quan hệ 1–1 với InvoiceDetail
-//    @OneToOne(mappedBy = "priceList", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-//    private InvoiceDetail invoiceDetail;
-
     // 🔹 Loại bảng giá
     public enum PriceType {
         SPARE_PART, // phụ tùng

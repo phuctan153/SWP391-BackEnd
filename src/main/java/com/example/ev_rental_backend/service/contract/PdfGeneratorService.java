@@ -34,7 +34,6 @@ public class PdfGeneratorService {
 
     public String generateContractFile(Contract contract) {
         try {
-            // 🧾 1️⃣ Chuẩn bị dữ liệu cho FreeMarker template
             Map<String, Object> data = new HashMap<>();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 

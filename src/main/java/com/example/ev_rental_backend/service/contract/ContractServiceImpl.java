@@ -48,8 +48,7 @@ public class ContractServiceImpl implements ContractService{
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên #" + staffId));
 
-        // 🔹 4️⃣ (Không cần set staff vào booking nữa — staff tạo hợp đồng sẽ nằm ở Contract)
-        bookingRepository.saveAndFlush(booking);
+//        bookingRepository.saveAndFlush(booking);
 
         // 🔹 5️⃣ Tạo hợp đồng
         Contract contract = Contract.builder()
@@ -226,9 +225,9 @@ public class ContractServiceImpl implements ContractService{
         OtpVerification otp = OtpVerification.builder()
                 .contract(contract)
                 .otpCode(otpCode)
-                .createdAt(LocalDateTime.now())
-                .expiredAt(LocalDateTime.now().plusMinutes(5))
-                .status(OtpVerification.Status.PENDING)
+//                .createdAt(LocalDateTime.now())
+//                .expiredAt(LocalDateTime.now().plusMinutes(5))
+//                .status(OtpVerification.Status.PENDING)
                 .attemptCount(0)
                 .build();
 

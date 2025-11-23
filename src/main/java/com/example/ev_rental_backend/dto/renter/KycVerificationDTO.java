@@ -33,6 +33,7 @@ public class KycVerificationDTO {
     @NotBlank(message = "Địa chỉ trên CCCD không được để trống")
     private String nationalAddress;
 
+    @NotNull(message = "Ngày cấp CCCD không được để trống")
     @PastOrPresent(message = "Ngày cấp CCCD không được nằm trong tương lai")
     private LocalDate nationalIssueDate;
 

@@ -18,25 +18,20 @@ public class Policy {
     @Column(name = "policy_id")
     private Long policyId;
 
-    // 🔸 Enum mô tả loại quy định
     @Enumerated(EnumType.STRING)
     @Column(name = "policy_type", nullable = false, length = 50)
     private PolicyType policyType;
 
-    // 🔸 Mô tả ngắn
     @Column(name = "description", length = 255)
     private String description;
 
-    // 🔸 Giá trị cụ thể của quy định (có thể là % hoặc số tiền)
     @Column(name = "value", nullable = false)
     private Double value;
 
-    // 🔸 Phạm vi áp dụng
     @Enumerated(EnumType.STRING)
     @Column(name = "applied_scope", nullable = false, length = 50)
     private AppliedScope appliedScope;
 
-    // 🔸 Trạng thái policy
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private Status status;
@@ -63,7 +58,6 @@ public class Policy {
     }
 
 
-    // 🔹 ENUM: loại quy định
     public enum PolicyType {
         REFUND_PERCENT_RENTER,   // phần trăm hoàn tiền khi renter hủy
         REFUND_PERCENT_ADMIN,    // phần trăm hoàn tiền khi admin hủy
@@ -76,12 +70,10 @@ public class Policy {
         MAX_HOLD_BEFORE_START
     }
 
-    // 🔹 ENUM: phạm vi áp dụng
     public enum AppliedScope {
         GLOBAL, STATION, VEHICLE_TYPE
     }
 
-    // 🔹 ENUM: trạng thái
     public enum Status {
         ACTIVE, INACTIVE
     }

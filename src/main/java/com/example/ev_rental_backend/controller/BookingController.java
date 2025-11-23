@@ -353,7 +353,7 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponseDto>> updateStatusToInUse(
             @PathVariable Long bookingId,
-            HttpServletRequest request) { // ✅ thêm request để lấy token
+            HttpServletRequest request) {
 
         BookingResponseDto booking = bookingService.updateStatusToInUse(bookingId, request);
 
@@ -389,24 +389,19 @@ public class BookingController {
             @PathVariable Long bookingId,
             HttpServletRequest request) {
 
-        // ✅ Lấy header Authorization
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new CustomException("Thiếu hoặc sai định dạng Authorization header", HttpStatus.UNAUTHORIZED);
         }
 
-        // ✅ Lấy token từ header
         String token = authHeader.substring(7);
 
-        // ✅ Kiểm tra token hợp lệ
         if (!jwtTokenUtil.isTokenValid(token)) {
             throw new CustomException("Token không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED);
         }
 
-        // ✅ Lấy email từ token
         String renterEmail = jwtTokenUtil.extractEmail(token);
 
-        // ✅ Gửi thông báo tới tất cả staff của trạm
         bookingService.notifyStationStaffAboutReturn(bookingId, renterEmail);
 
         return ResponseEntity.ok(ApiResponse.<String>builder()
@@ -428,7 +423,7 @@ public class BookingController {
     public ResponseEntity<ApiResponse<ReturnResponseDto>> returnVehicle(
             @PathVariable Long bookingId,
             @Valid @RequestBody ReturnRequestDto requestDto,
-            HttpServletRequest request) { // ✅ thêm request để lấy token
+            HttpServletRequest request) {
 
         ReturnResponseDto response = bookingService.returnVehicle(bookingId, requestDto, request);
 

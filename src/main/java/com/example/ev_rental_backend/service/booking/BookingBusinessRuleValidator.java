@@ -68,7 +68,6 @@ public class BookingBusinessRuleValidator {
             throw new CustomException("Xe hiện không khả dụng (BR-07)", HttpStatus.BAD_REQUEST);
         }
 
-        // 🔹 Lấy giá trị policy giữ xe (mặc định 2 ngày)
         int holdDays = policyRepository
                 .findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(
                         Policy.PolicyType.VEHICLE_HOLD_DAYS_AFTER_BOOKING,
@@ -77,10 +76,8 @@ public class BookingBusinessRuleValidator {
                 .map(policy -> policy.getValue().intValue())
                 .orElse(2);
 
-        // 🔹 Cộng thêm thời gian giữ xe
         LocalDateTime extendedEndDate = endDateTime.plusDays(holdDays);
 
-        // 🔹 Truy vấn tìm booking bị trùng thời gian
         List<Booking> overlappingBookings = bookingRepository.findBookingsWithHoldPeriod(
                 vehicle.getVehicleId(),
                 startDateTime,
@@ -222,6 +219,25 @@ public class BookingBusinessRuleValidator {
         }
 
         log.info("✅ BR-15 hợp lệ: Đơn {} đã thanh toán đầy đủ", booking.getBookingId());
+    }
+
+    public void validateMaxRentalDays(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        double maxRentalDays = policyRepository
+                .findFirstByPolicyTypeAndStatusOrderByCreatedAtDesc(
+                        Policy.PolicyType.MAX_RENTAL_DAYS,
+                        Policy.Status.ACTIVE
+                )
+                .map(Policy::getValue)
+                .orElse(30.0);
+
+        long rentalDays = Duration.between(startDateTime, endDateTime).toDays();
+
+        if (rentalDays > maxRentalDays) {
+            throw new CustomException(
+                    String.format("Bạn chỉ được thuê tối đa %.0f ngày (BR-25)", maxRentalDays),
+                    HttpStatus.BAD_REQUEST
+            );
+        }
     }
 
     /**

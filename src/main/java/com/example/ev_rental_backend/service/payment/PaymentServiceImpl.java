@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +30,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final WalletRepository walletRepository;
-    private final RenterRepository renterRepository;
+    private final PolicyRepository policyRepository;
     private final MomoPaymentService momoPaymentService;
     private final BookingRepository bookingRepository;
     private final NotificationService notificationService;
@@ -712,10 +713,10 @@ public class PaymentServiceImpl implements PaymentService {
         );
 
         // 4. Nếu là final invoice và đã thanh toán đủ → hoàn cọc
-        if (invoice.getType() == Invoice.Type.FINAL
-                && invoice.getStatus() == Invoice.Status.PAID) {
-            refundDeposit(invoice);
-        }
+//        if (invoice.getType() == Invoice.Type.FINAL
+//                && invoice.getStatus() == Invoice.Status.PAID) {
+//            refundDeposit(invoice);
+//        }
 
         log.info("Payment processed successfully - TransactionId: {}",
                 transaction.getTransactionId());
@@ -801,8 +802,21 @@ public class PaymentServiceImpl implements PaymentService {
             }
 
         } else if (totalPaid > 0) {
-            // Đã thanh toán một phần
-            invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            if (invoice.getType() == Invoice.Type.FINAL) {
+                List<Policy> policies = policyRepository.findByPolicyType(Policy.PolicyType.DEPOSIT_AMOUNT);
+                if (policies.isEmpty()) {
+                    throw new NotFoundException("Late payment fee policy not found");
+                }
+                Policy policy = policies.get(0);
+                Double total = amountRemaining - policy.getValue();
+                if (total <= 0) {
+                    // Đã thanh toán đủ sau khi trừ phí
+                    invoice.setStatus(Invoice.Status.PAID);
+                    invoice.setCompletedAt(LocalDateTime.now());
+                }
+            } else {
+                invoice.setStatus(Invoice.Status.PARTIALLY_PAID);
+            }
         }
 
         invoiceRepository.save(invoice);

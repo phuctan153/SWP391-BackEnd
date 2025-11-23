@@ -11,6 +11,9 @@ public interface InvoiceService {
     public InvoiceResponseDto createDepositInvoice(Long bookingId);
     public InvoiceResponseDto createFinalInvoice(Long bookingId);
     public void deleteInvoiceDetail(Long invoiceId, Long detailId);
+
+    public InvoiceResponseDto markInvoiceAsPaid(Long invoiceId);
+
     public InvoiceDetailResponseDto addInvoiceDetail(Long invoiceId, CreateInvoiceDetailDto requestDto);
     public InvoiceDetailResponseDto updateInvoiceDetail(Long invoiceId, Long detailId,
                                                         UpdateInvoiceDetailDto requestDto);

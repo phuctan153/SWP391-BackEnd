@@ -87,6 +87,25 @@ public class InvoiceController {
                         .build());
     }
 
+    @PatchMapping("/invoices/{invoiceId}/mark-paid")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<InvoiceResponseDto>> markInvoiceAsPaid(
+            @PathVariable Long invoiceId) {
+
+        log.warn("ADMIN manually marking invoice {} as PAID", invoiceId);
+
+        InvoiceResponseDto invoice = invoiceService.markInvoiceAsPaid(invoiceId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<InvoiceResponseDto>builder()
+                        .status("success")
+                        .code(HttpStatus.OK.value())
+                        .message("Invoice marked as PAID manually by ADMIN")
+                        .data(invoice)
+                        .build()
+        );
+    }
+
 
 
 

@@ -4,6 +4,7 @@ import com.example.ev_rental_backend.dto.invoice.*;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
 import com.example.ev_rental_backend.exception.NotFoundException;
+import com.example.ev_rental_backend.mapper.InvoiceMapper;
 import com.example.ev_rental_backend.repository.BookingRepository;
 import com.example.ev_rental_backend.repository.InvoiceDetailRepository;
 import com.example.ev_rental_backend.repository.InvoiceRepository;
@@ -11,12 +12,14 @@ import com.example.ev_rental_backend.repository.PriceListRepository;
 import com.example.ev_rental_backend.service.policy.PolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cglib.core.Local;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,6 +37,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceDetailRepository invoiceDetailRepository;
     private final PriceListRepository priceListRepository;
     private final PolicyService policyService;
+    private final InvoiceMapper invoiceMapper;
 
     /**
      * Lấy chi tiết hóa đơn
@@ -43,6 +47,44 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
         return mapToResponseDto(invoice);
     }
+
+    @Override
+    @Transactional
+    public InvoiceResponseDto markInvoiceAsPaid(Long invoiceId) {
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy hóa đơn #" + invoiceId));
+
+        if (invoice.getStatus() == Invoice.Status.PAID) {
+            throw new CustomException("Hóa đơn đã được thanh toán trước đó");
+        }
+
+        if (invoice.getType() != Invoice.Type.FINAL && invoice.getType() != Invoice.Type.DEPOSIT) {
+            throw new CustomException("Chỉ có thể đánh dấu thanh toán cho hóa đơn DEPOSIT hoặc FINAL");
+        }
+
+        invoice.setStatus(Invoice.Status.PAID);
+        invoice.setCompletedAt(LocalDateTime.now());
+        invoiceRepository.save(invoice);
+
+        log.warn("Invoice {} has been manually marked as PAID by ADMIN", invoiceId);
+
+        // ⭐ Manual mapping
+        InvoiceResponseDto dto = new InvoiceResponseDto();
+        dto.setInvoiceId(invoice.getInvoiceId());
+        dto.setBookingId(invoice.getBooking().getBookingId());
+        dto.setType(invoice.getType());
+        dto.setStatus(invoice.getStatus());
+        dto.setTotalAmount(invoice.getTotalAmount());
+        dto.setDepositAmount(invoice.getDepositAmount());
+        dto.setRefundAmount(invoice.getRefundAmount());
+        dto.setCreatedAt(invoice.getCreatedAt());
+        dto.setCompletedAt(invoice.getCompletedAt());
+
+        return dto;
+    }
+
+
 
     /**
      * Lấy danh sách hóa đơn của booking

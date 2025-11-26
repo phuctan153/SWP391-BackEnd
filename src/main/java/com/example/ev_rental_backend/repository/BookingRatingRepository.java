@@ -8,13 +8,23 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BookingRatingRepository extends JpaRepository<BookingRating, Long> {
+
     BookingRating findByBooking_BookingId(Long bookingId);
 
-    @Query("SELECT AVG(br.vehicleRating) FROM BookingRating br " +
-            "WHERE br.booking.vehicle.vehicleId = :vehicleId")
+    // 🔹 Trung bình rating của xe (giữ nguyên)
+    @Query("""
+        SELECT AVG(br.vehicleRating)
+        FROM BookingRating br
+        WHERE br.booking.vehicle.vehicleId = :vehicleId
+    """)
     Double getAverageVehicleRating(@Param("vehicleId") Long vehicleId);
 
-    @Query("SELECT AVG(br.staffRating) FROM BookingRating br " +
-            "WHERE br.booking.staff.staffId = :staffId")
+    // ✅ Trung bình rating của staff (đã cập nhật field mới)
+    @Query("""
+        SELECT AVG(br.staffRating)
+        FROM BookingRating br
+        WHERE br.booking.staffReceive.staffId = :staffId
+           OR br.booking.staffReturn.staffId = :staffId
+    """)
     Double getAverageStaffRating(@Param("staffId") Long staffId);
 }

@@ -44,7 +44,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     /**
      * Tìm booking theo staff ID
      */
-    List<Booking> findByStaff_StaffId(Long staffId);
+//    List<Booking> findByStaff_StaffId(Long staffId);
     @Query("""
         SELECT DISTINCT b
         FROM Booking b
@@ -63,7 +63,26 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     """)
     Optional<Booking> findBookingWithDetails(Long bookingId);
 
-    List<Booking> findByStaff_StaffIdAndStatus(Long staffId, Booking.Status status);
+
+
+//    List<Booking> findByStaff_StaffIdAndStatus(Long staffId, Booking.Status status);\
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE (b.staffReceive.staffId = :staffId OR b.staffReturn.staffId = :staffId)
+    """)
+    List<Booking> findByAnyStaff(@Param("staffId") Long staffId);
+
+    @Query("""
+    SELECT b FROM Booking b
+    WHERE (b.staffReceive.staffId = :staffId OR b.staffReturn.staffId = :staffId)
+    AND b.status = :status
+    """)
+
+
+
+
+    List<Booking> findByAnyStaffAndStatus(@Param("staffId") Long staffId,
+                                          @Param("status") Booking.Status status);
     /**
      * Tìm các booking có thời gian trùng lặp với xe cụ thể
      * BR-07: Kiểm tra xe có sẵn trong khoảng thời gian không

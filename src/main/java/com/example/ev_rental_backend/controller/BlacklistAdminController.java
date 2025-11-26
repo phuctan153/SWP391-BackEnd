@@ -2,14 +2,18 @@ package com.example.ev_rental_backend.controller;
 
 import com.example.ev_rental_backend.dto.ApiResponse;
 import com.example.ev_rental_backend.dto.booking.BookingResponseBlacklistDTO;
+import com.example.ev_rental_backend.dto.booking.BookingResponseDto;
 import com.example.ev_rental_backend.dto.warning.WarningRequestDTO;
 import com.example.ev_rental_backend.dto.warning.WarningResponseDTO;
 import com.example.ev_rental_backend.service.booking.BookingService;
 import com.example.ev_rental_backend.service.report.AdminReportService;
 import com.example.ev_rental_backend.service.warning.WarningService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -26,17 +30,15 @@ public class BlacklistAdminController {
 
     //lấy hết các booking đang có booking image có type là DAMAGED
     @GetMapping("/reports")
-    public ResponseEntity<ApiResponse<?>> getDamageReports() {
-        var reports = bookingService.getBookingsWithDamages();
-
-        return ResponseEntity.ok(
-                ApiResponse.<Object>builder()
-                        .status("success")
-                        .code(200)
-                        .data(reports)
-                        .build()
-        );
+    public ResponseEntity<ApiResponse<List<BookingResponseDto>>> getAdminReports() {
+        List<BookingResponseDto> reports = bookingService.getBookingsWithDamages();
+        return ResponseEntity.ok(ApiResponse.<List<BookingResponseDto>>builder()
+                .status("success")
+                .code(HttpStatus.OK.value())
+                .data(reports)
+                .build());
     }
+
 
     //khi nhấn vào booking đó trên list report, sẽ hiện ra booking detail
     @GetMapping("/reports/{bookingId}")

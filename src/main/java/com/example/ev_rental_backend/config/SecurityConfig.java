@@ -73,6 +73,8 @@ public class SecurityConfig {
                         // Role-based access
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
+                        .requestMatchers("/api/contracts/view/**").hasAnyRole("ADMIN", "STAFF", "RENTER")
+
                         .requestMatchers("/api/renter/**").hasRole("RENTER")
 
                         // Các request khác đều cần đăng nhập

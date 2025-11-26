@@ -88,7 +88,9 @@ public class StaffServiceImpl implements StaffService {
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên ID: " + staffId));
 
-        List<Booking> completedBookings = bookingRepository.findByStaff_StaffIdAndStatus(staffId, Booking.Status.COMPLETED);
+        List<Booking> completedBookings = bookingRepository.findByAnyStaffAndStatus(
+                staffId, Booking.Status.COMPLETED
+        );
 
         // Tính rating trung bình (nếu có)
         double avgRating = completedBookings.stream()

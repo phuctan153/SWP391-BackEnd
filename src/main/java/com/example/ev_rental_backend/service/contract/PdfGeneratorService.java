@@ -1,8 +1,10 @@
 package com.example.ev_rental_backend.service.contract;
 
 import com.example.ev_rental_backend.entity.Contract;
+import com.example.ev_rental_backend.entity.Policy;
 import com.example.ev_rental_backend.entity.TermCondition;
 import com.example.ev_rental_backend.repository.TermConditionRepository;
+import com.example.ev_rental_backend.service.policy.PolicyService;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import java.util.*;
 public class PdfGeneratorService {
 
     private final Configuration freemarkerConfig;
+    private final PolicyService policyService;
     private final TermConditionRepository termConditionRepository;
 
     public String generateContractFile(Contract contract) {
@@ -51,12 +54,27 @@ public class PdfGeneratorService {
                     .map(com.example.ev_rental_backend.entity.IdentityDocument::getFullName)
                     .findFirst()
                     .orElse(renter.getFullName());
+            double thresholdHours = policyService.getPolicyValue(Policy.PolicyType.RENTAL_TIME_THRESHOLD_HOURS);
+            data.put("rentalTimeThresholdHours", (int) thresholdHours);
             data.put("renterName", renterFullName);
             data.put("renterEmail", renter.getEmail());
             data.put("renterPhone", renter.getPhoneNumber());
 
             // --- Nhân viên & Xe ---
-            data.put("staffName", contract.getBooking().getStaff().getFullName());
+            data.put("staffCreatorName",
+                    contract.getCreatedByStaff() != null
+                            ? contract.getCreatedByStaff().getFullName()
+                            : "Chưa xác định");
+
+            data.put("staffReceiveName",
+                    contract.getBooking().getStaffReceive() != null
+                            ? contract.getBooking().getStaffReceive().getFullName()
+                            : "Chưa phân công");
+
+            data.put("staffReturnName",
+                    contract.getBooking().getStaffReturn() != null
+                            ? contract.getBooking().getStaffReturn().getFullName()
+                            : "Chưa phân công");
             data.put("vehicleName", contract.getBooking().getVehicle().getVehicleName());
             data.put("vehiclePlate", contract.getBooking().getVehicle().getPlateNumber());
 

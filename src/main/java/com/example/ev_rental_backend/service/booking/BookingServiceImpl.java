@@ -1,6 +1,7 @@
 package com.example.ev_rental_backend.service.booking;
 
 
+import com.example.ev_rental_backend.config.jwt.JwtTokenUtil;
 import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.entity.*;
 import com.example.ev_rental_backend.exception.CustomException;
@@ -10,6 +11,7 @@ import com.example.ev_rental_backend.repository.*;
 import com.example.ev_rental_backend.service.notification.NotificationServiceImpl;
 import com.example.ev_rental_backend.entity.Booking;
 import com.example.ev_rental_backend.repository.BookingRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -49,12 +51,69 @@ public class BookingServiceImpl implements BookingService {
     private final JavaMailSender mailSender;
     private final StaffStationRepository staffStationRepository;
     private final BookingMapper bookingMapper;
+    private final JwtTokenUtil jwtTokenUtil;
 
     // ==================== 5.1. Booking Creation ====================
-    @Override
-    public List<Booking> getBookingsWithDamages() {
-        return bookingRepository.findAllWithDamageReports();
+    @Transactional(readOnly = true)
+    public List<BookingResponseDto> getBookingsWithDamages() {
+        List<Booking> bookings = bookingRepository.findAllWithDamageReports();
+
+        return bookings.stream().map(booking -> {
+            // --- Lấy dữ liệu renter ---
+            var renter = booking.getRenter();
+            String renterName = renter != null ? renter.getFullName() : "Không xác định";
+
+            // --- Lấy dữ liệu staff nhận xe ---
+            var staffReceive = booking.getStaffReceive();
+            String staffReceiveName = staffReceive != null ? staffReceive.getFullName() : "Chưa phân công";
+
+            // --- Lấy dữ liệu staff trả xe ---
+            var staffReturn = booking.getStaffReturn();
+            String staffReturnName = staffReturn != null ? staffReturn.getFullName() : "Chưa phân công";
+
+            // --- Map danh sách hình ảnh ---
+            List<BookingResponseDto.BookingImageDto> imageDtos = booking.getImages() != null
+                    ? booking.getImages().stream().map(img ->
+                    BookingResponseDto.BookingImageDto.builder()
+                            .imageId(img.getImageId())
+                            .imageUrl(img.getImageUrl())
+                            .description(img.getDescription())
+                            .createdAt(img.getCreatedAt())
+                            .imageType(img.getImageType())
+                            .vehicleComponent(img.getVehicleComponent())
+                            .build()
+            ).toList()
+                    : List.of();
+
+            // --- Trả về DTO ---
+            return BookingResponseDto.builder()
+                    .bookingId(booking.getBookingId())
+                    .renterId(renter != null ? renter.getRenterId() : null)
+                    .renterName(renterName)
+                    .vehicleId(booking.getVehicle() != null ? booking.getVehicle().getVehicleId() : null)
+                    .vehicleName(booking.getVehicle() != null ? booking.getVehicle().getVehicleName() : "Không xác định")
+
+                    .staffReceiveId(staffReceive != null ? staffReceive.getStaffId() : null)
+                    .staffReceiveName(staffReceiveName)
+
+                    .staffReturnId(staffReturn != null ? staffReturn.getStaffId() : null)
+                    .staffReturnName(staffReturnName)
+
+                    .priceSnapshotPerHour(booking.getPriceSnapshotPerHour())
+                    .priceSnapshotPerDay(booking.getPriceSnapshotPerDay())
+                    .startDateTime(booking.getStartDateTime())
+                    .endDateTime(booking.getEndDateTime())
+                    .actualReturnTime(booking.getActualReturnTime())
+                    .totalAmount(booking.getTotalAmount())
+                    .status(booking.getStatus())
+                    .depositStatus(booking.getDepositStatus())
+                    .createdAt(booking.getCreatedAt())
+                    .updatedAt(booking.getUpdatedAt())
+                    .bookingImages(imageDtos)
+                    .build();
+        }).toList();
     }
+
 
     @Override
     public void sendCancellationEmailToRenter(Long bookingId) {
@@ -200,7 +259,7 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy nhân viên với email: " + staffEmail));
 
         // ✅ Cập nhật người xử lý và thời gian trả xe thực tế
-        booking.setStaff(staff);
+        booking.setStaffReturn(staff);
         booking.setActualReturnTime(LocalDateTime.now());
         booking.setStatus(Booking.Status.COMPLETED);
 
@@ -627,7 +686,7 @@ public class BookingServiceImpl implements BookingService {
         if (requestDto.getStaffId() != null) {
             Staff staff = staffRepository.findById(requestDto.getStaffId())
                     .orElseThrow(() -> new NotFoundException("Staff not found"));
-            booking.setStaff(staff);
+            booking.setStaffReceive(staff);
         }
 
         // Cập nhật trạng thái
@@ -645,15 +704,46 @@ public class BookingServiceImpl implements BookingService {
     /**
      * Chuyển trạng thái sang IN_USE
      */
-    public BookingResponseDto updateStatusToInUse(Long bookingId) {
+    @Transactional
+    public BookingResponseDto updateStatusToInUse(Long bookingId, HttpServletRequest request) {
+        // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Booking not found"));
 
+        // 🔹 2️⃣ Lấy token và trích xuất email nhân viên
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new CustomException("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED);
+        }
+
+        String token = authHeader.substring(7);
+        String email = jwtTokenUtil.extractEmail(token);
+
+        // 🔹 3️⃣ Lấy thông tin staff từ email
+        Staff staff = staffRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("Staff not found for email: " + email));
+
+        // 🔹 4️⃣ Kiểm tra trạng thái booking hợp lệ
+        if (booking.getStatus() != Booking.Status.RESERVED) {
+            throw new CustomException("Booking must be in RESERVED status to start using", HttpStatus.BAD_REQUEST);
+        }
+
+        // 🔹 5️⃣ Gán staff nhận xe (staffReceive)
+        booking.setStaffReceive(staff);
+
+        // 🔹 6️⃣ Cập nhật trạng thái booking sang IN_USE
         booking.setStatus(Booking.Status.IN_USE);
+        booking.setUpdatedAt(LocalDateTime.now());
+
+        // 🔹 7️⃣ Lưu thay đổi
         Booking savedBooking = bookingRepository.save(booking);
 
+        log.info("Booking {} set to IN_USE by staff {}", bookingId, staff.getFullName());
+
+        // 🔹 8️⃣ Trả DTO phản hồi
         return mapToResponseDto(savedBooking);
     }
+
 
     public BookingResponseDto updateStatusToReserved(Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
@@ -670,56 +760,74 @@ public class BookingServiceImpl implements BookingService {
     /**
      * Trả xe (BR-11, BR-12, BR-13, BR-14, BR-15, BR-26, BR-27)
      */
-    public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto) {
+    @Transactional
+    public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto, HttpServletRequest request) {
+        // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Booking not found"));
 
+        // 🔹 2️⃣ Kiểm tra nếu đã có thời gian trả xe (đã xử lý trước đó)
+        if (booking.getActualReturnTime() != null) {
+            Staff existingStaff = booking.getStaffReturn();
+            String staffName = (existingStaff != null) ? existingStaff.getFullName() : "Unknown";
+            return ReturnResponseDto.builder()
+                    .bookingId(bookingId)
+                    .actualReturnTime(booking.getActualReturnTime())
+                    .message("⚠️ Vehicle has already been returned by " + staffName
+                            + " at " + booking.getActualReturnTime())
+                    .build();
+        }
+
+        // 🔹 3️⃣ Kiểm tra trạng thái booking
         if (booking.getStatus() != Booking.Status.IN_USE) {
             throw new CustomException("Booking must be in IN_USE status to return",
                     HttpStatus.BAD_REQUEST);
         }
 
-        // BR-11: Kiểm tra trả đúng trạm (giả sử đã check)
+        // 🔹 4️⃣ Lấy token từ header và extract email
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new CustomException("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED);
+        }
 
-        // Set thời gian trả thực tế
+        String token = authHeader.substring(7);
+        String email = jwtTokenUtil.extractEmail(token); // ✅ sử dụng util sẵn có
+
+        // 🔹 5️⃣ Tìm Staff theo email
+        Staff staff = staffRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("Staff not found for email: " + email));
+
+        // 🔹 6️⃣ Gán staffReturn = nhân viên hiện tại
+        booking.setStaffReturn(staff);
+
+        // 🔹 7️⃣ Ghi nhận thời gian trả xe
         booking.setActualReturnTime(LocalDateTime.now());
 
-        // BR-14: Tính phí trả trễ
-//        Double lateFee = validator.calculateLateFee(booking);
-
-        // BR-13: Cập nhật tình trạng xe
+        // 🔹 8️⃣ Cập nhật tình trạng xe
         Vehicle vehicle = booking.getVehicle();
         vehicle.setBatteryLevel(requestDto.getBatteryLevel());
         vehicle.setMileage(requestDto.getMileage());
 
-        // Kiểm tra hư hỏng
-        boolean hasDamage = requestDto.getHasDamage() != null && requestDto.getHasDamage();
+        boolean hasDamage = Boolean.TRUE.equals(requestDto.getHasDamage());
+        vehicle.setStatus(hasDamage ? Vehicle.Status.IN_REPAIR : Vehicle.Status.AVAILABLE);
 
-        // Cập nhật vehicle status
-        if (hasDamage) {
-            vehicle.setStatus(Vehicle.Status.IN_REPAIR);
-        } else {
-            vehicle.setStatus(Vehicle.Status.AVAILABLE);
-        }
+        // 🔹 9️⃣ Cập nhật trạng thái booking
+        booking.setStatus(Booking.Status.COMPLETED);
 
-        // Cập nhật booking status
-//        booking.setStatus(Booking.Status.COMPLETED);
-
+        // 🔹 🔟 Lưu dữ liệu
         bookingRepository.save(booking);
         vehicleRepository.save(vehicle);
 
-        log.info("Vehicle returned for booking {}", bookingId);
+        log.info("✅ Vehicle returned for booking {} by staff {}", bookingId, staff.getFullName());
 
-        // Tạo response
+        // 🔹 11️⃣ Trả response
         return ReturnResponseDto.builder()
                 .bookingId(bookingId)
                 .actualReturnTime(booking.getActualReturnTime())
-//                .lateFee(lateFee)
-//                .damageFee(requestDto.getDamageFee())
-//                .totalFee(lateFee + (requestDto.getDamageFee() != null ? requestDto.getDamageFee() : 0.0))
-                .message("Vehicle returned successfully")
+                .message("Vehicle returned successfully by " + staff.getFullName())
                 .build();
     }
+
 
     /**
      * Hoàn tất booking
@@ -867,8 +975,15 @@ public class BookingServiceImpl implements BookingService {
                 .renterName(booking.getRenter().getFullName())
                 .vehicleId(booking.getVehicle().getVehicleId())
                 .vehicleName(booking.getVehicle().getVehicleName())
-                .staffId(booking.getStaff() != null ? booking.getStaff().getStaffId() : null)
-                .staffName(booking.getStaff() != null ? booking.getStaff().getFullName() : null)
+
+                // ✅ Gán nhân viên bàn giao xe
+                .staffReceiveId(booking.getStaffReceive() != null ? booking.getStaffReceive().getStaffId() : null)
+                .staffReceiveName(booking.getStaffReceive() != null ? booking.getStaffReceive().getFullName() : null)
+
+                // ✅ Gán nhân viên nhận xe khi trả
+                .staffReturnId(booking.getStaffReturn() != null ? booking.getStaffReturn().getStaffId() : null)
+                .staffReturnName(booking.getStaffReturn() != null ? booking.getStaffReturn().getFullName() : null)
+
                 .priceSnapshotPerHour(booking.getPriceSnapshotPerHour())
                 .priceSnapshotPerDay(booking.getPriceSnapshotPerDay())
                 .startDateTime(booking.getStartDateTime())
@@ -879,6 +994,8 @@ public class BookingServiceImpl implements BookingService {
                 .depositStatus(booking.getDepositStatus())
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
+
+                // ✅ Danh sách hình ảnh
                 .bookingImages(
                         booking.getImages() != null
                                 ? booking.getImages().stream()
@@ -895,6 +1012,7 @@ public class BookingServiceImpl implements BookingService {
                 )
                 .build();
     }
+
 
 
     private BookingRatingResponseDto mapToRatingResponseDto(BookingRating rating) {

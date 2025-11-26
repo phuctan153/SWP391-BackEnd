@@ -109,7 +109,9 @@
     <p><b>Người thuê:</b> ${renterName?html}</p>
     <p><b>Email:</b> ${renterEmail?html}</p>
     <p><b>Số điện thoại:</b> ${renterPhone?html}</p>
-    <p><b>Nhân viên phụ trách:</b> ${staffName?html}</p>
+    <p><b>Nhân viên tạo hợp đồng:</b> ${staffCreatorName?html}</p>
+    <p><b>Nhân viên bàn giao xe:</b> ${staffReceiveName?html}</p>
+    <p><b>Nhân viên nhận xe khi trả:</b> ${staffReturnName?html}</p>
     <p><b>Tên xe:</b> ${vehicleName?html}</p>
     <p><b>Biển số xe:</b> ${vehiclePlate?html}</p>
     <p><b>Thời gian thuê:</b>
@@ -118,9 +120,12 @@
 
     <p><b>Giá thuê:</b> ${pricePerDay?string(",##0")} VNĐ/ngày</p>
     <p><b>Phụ thu nếu trả trễ:</b>
-        Nếu trả trễ &lt; 4 tiếng: <b>${pricePerHour?string(",##0")} VNĐ/giờ</b>.<br/>
-        Nếu trễ ≥ 4 tiếng: <b>${pricePerDay?string(",##0")} VNĐ/ngày</b>.
+        Nếu trả trễ &lt; ${rentalTimeThresholdHours} tiếng:
+        <b>${pricePerHour?string(",##0")} VNĐ/giờ</b>.<br/>
+        Nếu trễ ≥ ${rentalTimeThresholdHours} tiếng:
+        <b>${pricePerDay?string(",##0")} VNĐ/ngày</b>.
     </p>
+
     <#if adminName?has_content>
     <p><b>Quản trị viên phê duyệt:</b> ${adminName?html}</p>
 </#if>

@@ -20,8 +20,12 @@ public class BookingResponseDto {
     private String renterName;
     private Long vehicleId;
     private String vehicleName;
-    private Long staffId;
-    private String staffName;
+
+    private Long staffReceiveId;
+    private String staffReceiveName;
+
+    private Long staffReturnId;
+    private String staffReturnName;
 
     private Double priceSnapshotPerHour;
     private Double priceSnapshotPerDay;

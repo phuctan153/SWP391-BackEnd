@@ -32,6 +32,10 @@ public class ContractResponseDTO {
 
     private LocalDateTime updatedAt;
 
+    private Long createdByStaffId;
+    private String createdByStaffName;
+
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

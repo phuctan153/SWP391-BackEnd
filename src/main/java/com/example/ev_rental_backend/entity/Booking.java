@@ -27,10 +27,14 @@ public class Booking {
     @JsonIgnore
     @JoinColumn(name = "renter_id", nullable = false)
     private Renter renter;
+    @ManyToOne
+    @JoinColumn(name = "staff_receive_id") // 🧍‍♂️ Nhân viên giao xe cho người thuê
+    private Staff staffReceive;
 
     @ManyToOne
-    @JoinColumn(name = "staff_id")
-    private Staff staff;
+    @JoinColumn(name = "staff_return_id") // 🧍‍♀️ Nhân viên nhận xe khi trả
+    private Staff staffReturn;
+
 
     @ManyToOne
     @JsonIgnore

@@ -38,7 +38,7 @@ public class ContractServiceImpl implements ContractService{
     public ContractResponseDTO createContract(ContractRequestDTO dto, Long staffId) {
         // 🔹 1️⃣ Lấy booking
         Booking booking = bookingRepository.findById(dto.getBookingId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking #" + dto.getBookingId()));
 
         // 🔹 2️⃣ Kiểm tra trạng thái booking
         if (booking.getStatus() != Booking.Status.RESERVED)
@@ -48,15 +48,8 @@ public class ContractServiceImpl implements ContractService{
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên #" + staffId));
 
-        // 🔹 4️⃣ Gán staff vào booking (trước khi tạo hợp đồng)
-        booking.setStaff(staff);
-//        bookingRepository.save(booking);  // ✅ Lưu lại staff ngay
-
-        bookingRepository.saveAndFlush(booking); // flush ngay
-
-// 🔹 5️⃣ Reload lại booking từ DB để đảm bảo dữ liệu mới nhất
-        booking = bookingRepository.findById(dto.getBookingId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy booking"));
+        // 🔹 4️⃣ (Không cần set staff vào booking nữa — staff tạo hợp đồng sẽ nằm ở Contract)
+        bookingRepository.saveAndFlush(booking);
 
         // 🔹 5️⃣ Tạo hợp đồng
         Contract contract = Contract.builder()
@@ -64,11 +57,12 @@ public class ContractServiceImpl implements ContractService{
                 .contractType(Contract.ContractType.valueOf(dto.getContractType().toUpperCase()))
                 .contractDate(LocalDateTime.now())
                 .status(Contract.Status.PENDING_ADMIN_SIGNATURE)
+                .createdByStaff(staff) // ✅ Gán nhân viên tạo hợp đồng
                 .build();
 
         contractRepository.save(contract);
 
-        // 🔹 6️⃣ Lưu điều khoản
+        // 🔹 6️⃣ Lưu các điều khoản hợp đồng
         for (ContractRequestDTO.TermConditionDTO t : dto.getTerms()) {
             termConditionRepository.save(
                     TermCondition.builder()
@@ -80,20 +74,19 @@ public class ContractServiceImpl implements ContractService{
             );
         }
 
-        // 🔹 7️⃣ Render PDF hợp đồng
+        // 🔹 7️⃣ Sinh file PDF và lưu URL
         String fileUrl = pdfGeneratorService.generateContractFile(contract);
-
-        // 🔹 8️⃣ Lưu lại contract có file URL
         contract.setContractFileUrl(fileUrl);
         contractRepository.save(contract);
 
-        // 🔹 9️⃣ Gắn lại contract vào booking
+        // 🔹 8️⃣ Gắn lại contract vào booking
         booking.setContract(contract);
         bookingRepository.save(booking);
 
-        // 🔹 🔟 Trả DTO phản hồi
+        // 🔹 9️⃣ Trả response có thông tin nhân viên tạo hợp đồng
         return mapToResponse(contract);
     }
+
 
 
 
@@ -167,14 +160,16 @@ public class ContractServiceImpl implements ContractService{
     public List<BookingContractInfoDTO> getContractsByStatus(String status) {
         try {
             Contract.Status enumStatus = Contract.Status.valueOf(status.toUpperCase());
+
             List<Contract> contracts = contractRepository.findByStatusOrderByContractDateDesc(enumStatus);
 
             return contracts.stream()
                     .map(contract -> {
                         var booking = contract.getBooking();
                         var renter = booking.getRenter();
-                        var staff = booking.getStaff();
+                        var staffCreator = contract.getCreatedByStaff(); // ✅ nhân viên tạo hợp đồng
 
+                        // 🧠 Lấy tên renter ưu tiên theo giấy tờ đã xác minh (CCCD > GPLX > fullName)
                         String renterFullName = renter.getIdentityDocuments().stream()
                                 .filter(doc -> doc.getStatus() == IdentityDocument.DocumentStatus.VERIFIED)
                                 .filter(doc -> doc.getType() == IdentityDocument.DocumentType.NATIONAL_ID)
@@ -189,15 +184,18 @@ public class ContractServiceImpl implements ContractService{
                                                 .orElse(renter.getFullName())
                                 );
 
+                        // 🧱 Trả DTO phản hồi
                         return BookingContractInfoDTO.builder()
                                 .bookingId(booking.getBookingId())
                                 .vehicleName(booking.getVehicle().getVehicleName())
                                 .vehiclePlate(booking.getVehicle().getPlateNumber())
                                 .renterName(renterFullName)
-//                                .renterName(renter.getIdentityDocuments().)
                                 .renterEmail(renter.getEmail())
                                 .renterPhone(renter.getPhoneNumber())
-                                .staffName(staff != null ? staff.getFullName() : null)
+
+                                // ✅ Hiển thị nhân viên tạo hợp đồng
+                                .staffName(staffCreator != null ? staffCreator.getFullName() : null)
+
                                 .startDateTime(booking.getStartDateTime())
                                 .endDateTime(booking.getEndDateTime())
                                 .pricePerHour(booking.getPriceSnapshotPerHour())
@@ -211,6 +209,7 @@ public class ContractServiceImpl implements ContractService{
             throw new RuntimeException("Trạng thái không hợp lệ: " + status);
         }
     }
+
 
     @Override
     public void sendOtpForAdminSignature(Long contractId, Long adminId) {
@@ -475,6 +474,11 @@ public class ContractServiceImpl implements ContractService{
         Contract contract = contractRepository.findByBooking_BookingId(bookingId)
                 .orElseThrow(() -> new CustomException("Không tìm thấy hợp đồng cho booking này."));
 
+        // 🆕 Lấy thông tin liên quan
+        Staff staffCreator = contract.getCreatedByStaff();
+        Admin admin = contract.getAdmin();
+        Renter renter = contract.getBooking().getRenter();
+
         return ContractResponseDTO.builder()
                 .contractId(contract.getContractId())
                 .bookingId(bookingId)
@@ -484,8 +488,13 @@ public class ContractServiceImpl implements ContractService{
                 .contractDate(contract.getContractDate())
                 .adminSignedAt(contract.getAdminSignedAt())
                 .renterSignedAt(contract.getRenterSignedAt())
-                .adminName(contract.getAdmin() != null ? contract.getAdmin().getFullName() : null)
-                .renterName(contract.getBooking().getRenter().getFullName())
+                .adminName(admin != null ? admin.getFullName() : null)
+                .renterName(renter != null ? renter.getFullName() : null)
+
+                // 🧩 Bổ sung 2 dòng quan trọng để staff tạo hợp đồng có thể xem được
+                .createdByStaffId(staffCreator != null ? staffCreator.getStaffId() : null)
+                .createdByStaffName(staffCreator != null ? staffCreator.getFullName() : null)
+
                 .terms(contract.getTerms().stream()
                         .map(t -> ContractResponseDTO.TermConditionDTO.builder()
                                 .termNumber(t.getTermNumber())
@@ -496,22 +505,56 @@ public class ContractServiceImpl implements ContractService{
                 .build();
     }
 
+
     @Override
     public ContractResponseDTO getContractById(Long contractId) {
-        return contractRepository.findById(contractId)
-                .map(contract -> ContractResponseDTO.builder()
-                        .contractId(contract.getContractId())
-                        .bookingId(contract.getBooking() != null ? contract.getBooking().getBookingId() : null)
-                        // ✅ Chuyển enum sang String an toàn
-                        .contractType(contract.getContractType() != null ? contract.getContractType().name() : null)
-                        .contractFileUrl(contract.getContractFileUrl())
-                        .status(contract.getStatus() != null ? contract.getStatus().name() : null)
-                        .contractDate(contract.getContractDate())
-                        .createdAt(contract.getCreatedAt())
-                        .updatedAt(contract.getUpdatedAt())
-                        .build())
-                .orElse(null);
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new CustomException("Không tìm thấy hợp đồng #" + contractId));
+
+        Booking booking = contract.getBooking();
+        Staff creator = contract.getCreatedByStaff();
+        Admin admin = contract.getAdmin();
+
+        // 🟢 Map thủ công đầy đủ để controller có đủ dữ liệu kiểm tra quyền
+        ContractResponseDTO dto = ContractResponseDTO.builder()
+                .contractId(contract.getContractId())
+                .bookingId(booking != null ? booking.getBookingId() : null)
+                .contractType(contract.getContractType() != null ? contract.getContractType().name() : null)
+                .contractFileUrl(contract.getContractFileUrl())
+                .status(contract.getStatus() != null ? contract.getStatus().name() : null)
+                .contractDate(contract.getContractDate())
+                .adminSignedAt(contract.getAdminSignedAt())
+                .renterSignedAt(contract.getRenterSignedAt())
+                .createdAt(contract.getCreatedAt())
+                .updatedAt(contract.getUpdatedAt())
+                .terms(contract.getTerms().stream()
+                        .map(t -> ContractResponseDTO.TermConditionDTO.builder()
+                                .termNumber(t.getTermNumber())
+                                .termTitle(t.getTermTitle())
+                                .termContent(t.getTermContent())
+                                .build())
+                        .toList())
+                .build();
+
+        // 👷 Nhân viên tạo hợp đồng
+        if (creator != null) {
+            dto.setCreatedByStaffId(creator.getStaffId());
+            dto.setCreatedByStaffName(creator.getFullName());
+        }
+
+        // 👤 Renter
+        if (booking != null && booking.getRenter() != null) {
+            dto.setRenterName(booking.getRenter().getFullName());
+        }
+
+        // 🧑‍💼 Admin
+        if (admin != null) {
+            dto.setAdminName(admin.getFullName());
+        }
+
+        return dto;
     }
+
 
 
 
@@ -535,19 +578,25 @@ public class ContractServiceImpl implements ContractService{
                 .contractId(contract.getContractId())
                 .bookingId(contract.getBooking().getBookingId())
                 .contractType(contract.getContractType().name())
+                .contractFileUrl(contract.getContractFileUrl())
                 .status(contract.getStatus().name())
                 .contractDate(contract.getContractDate())
-                .contractFileUrl(contract.getContractFileUrl())
-                .terms(
-                        termConditionRepository.findByContract(contract)
-                                .stream()
-                                .map(t -> new ContractResponseDTO.TermConditionDTO(
-                                        t.getTermNumber(),
-                                        t.getTermTitle(),
-                                        t.getTermContent()
-                                ))
-                                .toList()
-                )
+                .adminName(contract.getAdmin() != null ? contract.getAdmin().getFullName() : null)
+                .renterName(contract.getBooking().getRenter().getFullName())
+                .createdByStaffId(contract.getCreatedByStaff() != null ? contract.getCreatedByStaff().getStaffId() : null)
+                .createdByStaffName(contract.getCreatedByStaff() != null ? contract.getCreatedByStaff().getFullName() : null)
+                .adminSignedAt(contract.getAdminSignedAt())
+                .renterSignedAt(contract.getRenterSignedAt())
+                .createdAt(contract.getCreatedAt())
+                .updatedAt(contract.getUpdatedAt())
+                .terms(contract.getTerms().stream()
+                        .map(t -> ContractResponseDTO.TermConditionDTO.builder()
+                                .termNumber(t.getTermNumber())
+                                .termTitle(t.getTermTitle())
+                                .termContent(t.getTermContent())
+                                .build())
+                        .toList())
                 .build();
     }
+
 }

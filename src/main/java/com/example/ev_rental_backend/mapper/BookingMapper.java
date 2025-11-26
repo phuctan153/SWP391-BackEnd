@@ -22,8 +22,15 @@ public interface BookingMapper {
     @Mapping(target = "bookingId", source = "bookingId")
     @Mapping(target = "renterId", source = "renter.renterId")
     @Mapping(target = "renterName", source = "renter.fullName")
-    @Mapping(target = "staffId", source = "staff.staffId")
-    @Mapping(target = "staffName", source = "staff.fullName")
+
+// 🧍‍♂️ Nhân viên giao xe (staffReceive)
+    @Mapping(target = "staffReceiveId", source = "staffReceive.staffId")
+    @Mapping(target = "staffReceiveName", source = "staffReceive.fullName")
+
+// 🧍‍♀️ Nhân viên nhận xe khi trả (staffReturn)
+    @Mapping(target = "staffReturnId", source = "staffReturn.staffId")
+    @Mapping(target = "staffReturnName", source = "staffReturn.fullName")
+
     @Mapping(target = "vehicleId", source = "vehicle.vehicleId")
     @Mapping(target = "vehicleName", source = "vehicle.vehicleName")
     @Mapping(target = "startDateTime", source = "startDateTime")
@@ -36,7 +43,12 @@ public interface BookingMapper {
     @Mapping(target = "totalAmount", source = "totalAmount")
     @Mapping(target = "createdAt", source = "createdAt")
     @Mapping(target = "updatedAt", source = "updatedAt")
+
+// 🖼️ Mapping danh sách hình ảnh (nếu bạn có method con map BookingImage → BookingImageDto)
+    @Mapping(target = "bookingImages", source = "images")
+
     BookingResponseDto toBookingResponseDto(Booking booking);
+
 
     default BookingResponseBlacklistDTO.RenterShortInfo toRenterShortInfo(Renter renter) {
         if (renter == null) return null;

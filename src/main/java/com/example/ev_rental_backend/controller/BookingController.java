@@ -354,14 +354,18 @@ public class BookingController {
     @PutMapping("/{bookingId}/status/in-use")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<BookingResponseDto>> updateStatusToInUse(
-            @PathVariable Long bookingId) {
-        BookingResponseDto booking = bookingService.updateStatusToInUse(bookingId);
+            @PathVariable Long bookingId,
+            HttpServletRequest request) { // ✅ thêm request để lấy token
+
+        BookingResponseDto booking = bookingService.updateStatusToInUse(bookingId, request);
+
         return ResponseEntity.ok(ApiResponse.<BookingResponseDto>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(booking)
                 .build());
     }
+
 
 
     //admin đồng ý cho thuê
@@ -453,14 +457,18 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<ApiResponse<ReturnResponseDto>> returnVehicle(
             @PathVariable Long bookingId,
-            @Valid @RequestBody ReturnRequestDto requestDto) {
-        ReturnResponseDto response = bookingService.returnVehicle(bookingId, requestDto);
+            @Valid @RequestBody ReturnRequestDto requestDto,
+            HttpServletRequest request) { // ✅ thêm request để lấy token
+
+        ReturnResponseDto response = bookingService.returnVehicle(bookingId, requestDto, request);
+
         return ResponseEntity.ok(ApiResponse.<ReturnResponseDto>builder()
                 .status("success")
                 .code(HttpStatus.OK.value())
                 .data(response)
                 .build());
     }
+
 
     /**
      * PUT /api/bookings/{bookingId}/status/completed - Hoàn tất booking

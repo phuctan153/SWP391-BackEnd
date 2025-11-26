@@ -2,6 +2,7 @@ package com.example.ev_rental_backend.service.booking;
 
 import com.example.ev_rental_backend.dto.booking.*;
 import com.example.ev_rental_backend.entity.BookingImage;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.ev_rental_backend.entity.Booking;
 
@@ -29,14 +30,14 @@ public interface BookingService {
     public Map<String, Object> checkImageChecklist(Long bookingId, BookingImage.ImageType imageType);
 
     public BookingResponseDto pickupVehicle(Long bookingId, PickupRequestDto requestDto);
-    public BookingResponseDto updateStatusToInUse(Long bookingId);
-    public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto);
+    public BookingResponseDto updateStatusToInUse(Long bookingId, HttpServletRequest request);
+    public ReturnResponseDto returnVehicle(Long bookingId, ReturnRequestDto requestDto, HttpServletRequest request);
     public BookingResponseDto completeBooking(Long bookingId);
     public BookingRatingResponseDto rateBooking(Long bookingId, CreateBookingRatingDto requestDto);
     public BookingRatingResponseDto getBookingRating(Long bookingId);
 
     public BookingResponseDto updateStatusToReserved(Long bookingId);
-    public List<Booking> getBookingsWithDamages();
+    public List<BookingResponseDto> getBookingsWithDamages();
 
     public List<BookingResponseDto> getMyBookings(String status);
     public BookingResponseDto getMyBookingDetail(Long bookingId);

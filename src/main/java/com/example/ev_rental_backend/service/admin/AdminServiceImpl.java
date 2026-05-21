@@ -37,7 +37,7 @@ public class AdminServiceImpl implements AdminService {
                 .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống"));
 
         // 🔒 Vì bạn CHƯA mã hóa password → dùng equals() tạm thời
-        if (!password.equals(admin.getPassword())) {
+        if (!passwordEncoder.matches(password, admin.getPassword())) {
             throw new RuntimeException("Mật khẩu không chính xác");
         }
 
